@@ -31,11 +31,15 @@
 - **Editor:** https://script.google.com/d/1baxE8RNxwgqG3SGT0RrgV0eR1oM1r9gEjEWdoxvKeaH6pBJ3UoN7kywh/edit
 
 ### TASK-02: รัน setupAll()
-- [ ] เปิด Apps Script editor → เลือก `Setup.gs`
-- [ ] รัน `setupAll()` (รวม setupDatabase + seedConfig + seedProducts + setupDrive + setupProperties)
-- [ ] อนุญาต OAuth ตามที่ขอ (Sheets + Drive + UrlFetch + Triggers + UserInfo)
-- [ ] copy SHEET_ID + DRIVE_FOLDER_ID จาก Logger output
-- **Acceptance:** Sheet 10 tab พร้อม headers + Drive folder root + 6 sub-folder + Properties มี SHEET_ID/DRIVE_FOLDER_ID/sub-folder IDs
+- [x] เปิด Apps Script editor → เลือก `Setup.gs`
+- [x] รัน `setupAll()` (รวม setupDatabase + seedConfig + seedProducts + setupDrive + setupProperties)
+- [x] อนุญาต OAuth ตามที่ขอ (Sheets + Drive + UrlFetch + Triggers + UserInfo)
+- [x] copy SHEET_ID + DRIVE_FOLDER_ID จาก Logger output
+- **Acceptance:** Sheet 10 tab พร้อม headers + Drive folder root + 6 sub-folder + Properties มี SHEET_ID/DRIVE_FOLDER_ID/sub-folder IDs ✅
+- **SHEET_ID:** `1nhI71qba9n8yef-WhJ9WUQYzaHAGT8c6bg7nXoY9YVI`
+- **DRIVE_FOLDER_ID:** `1K2heZPHZkgZP9oQgDmGtapyC7TkK_xFG`
+- **Sheet:** https://docs.google.com/spreadsheets/d/1nhI71qba9n8yef-WhJ9WUQYzaHAGT8c6bg7nXoY9YVI/edit
+- **Drive:** https://drive.google.com/drive/folders/1K2heZPHZkgZP9oQgDmGtapyC7TkK_xFG
 
 ### TASK-03: แก้ชื่อสินค้าจริง 5 SKU + ยอดเริ่มต้น
 - [ ] เปิด Sheet `Products`
