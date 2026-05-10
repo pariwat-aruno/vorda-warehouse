@@ -42,11 +42,15 @@
 - **Drive:** https://drive.google.com/drive/folders/1K2heZPHZkgZP9oQgDmGtapyC7TkK_xFG
 
 ### TASK-03: แก้ชื่อสินค้าจริง 5 SKU + ยอดเริ่มต้น
-- [ ] เปิด Sheet `Products`
-- [ ] แก้ `product_name` ให้ตรงกับสินค้าจริง 5 ตัว
-- [ ] ใส่ `opening_balance` (Stock Take ครั้งแรก)
-- [ ] copy ค่าเดียวกันไป Sheet `Stock.qty_on_hand` (initial sync)
-- **Acceptance:** Products + Stock มี 5 row ตรงกัน
+- [x] แก้ `seedProducts()` ใน Setup.gs ให้เป็น upsert + ใส่ชื่อจริง 4 SKU + 1 placeholder
+- [x] clasp push + ผู้ใช้รัน `seedProducts()` → 5 row updated
+- [x] opening_balance = 0 ทุกตัว (จะ count รอบแรกผ่าน LIFF)
+- **Acceptance:** Products + Stock มี 5 row ตรงกัน ✅
+  - SKU-01 ครีมกันแดด (active)
+  - SKU-02 เซรั่มโสมแดง (active)
+  - SKU-03 ครีมโสมแดง (active)
+  - SKU-04 เซรั่มสาหร่ายแดง (active)
+  - SKU-05 (ยังไม่ใช้) (inactive — placeholder)
 
 ---
 

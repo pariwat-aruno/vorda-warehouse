@@ -280,8 +280,15 @@ function seedConfig() {
 }
 
 /**
- * Seed สินค้า 5 ตัวเริ่มต้น (idempotent)
- * แก้ชื่อ + ยอดเริ่มต้นได้ตามจริง
+ * Seed สินค้า 5 ตัวเริ่มต้น — upsert: ใส่ใหม่ถ้ายังไม่มี + อัปเดต product_name/unit/is_active ถ้ามีอยู่แล้ว
+ * (opening_balance จะ overwrite เฉพาะตอน setup ครั้งแรก — ถ้ามี Stock movement แล้วจะไม่แตะ qty_on_hand)
+ *
+ * 4 ตัวจริง:
+ *   SKU-01 ครีมกันแดด
+ *   SKU-02 เซรั่มโสมแดง
+ *   SKU-03 ครีมโสมแดง
+ *   SKU-04 เซรั่มสาหร่ายแดง
+ *   SKU-05 (placeholder — is_active=false ไว้รองรับเพิ่มในอนาคต)
  */
 function seedProducts() {
   const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
@@ -290,48 +297,70 @@ function seedProducts() {
   const productsSh = ss.getSheetByName('Products');
   const stockSh = ss.getSheetByName('Stock');
 
-  // ของจริงให้ owner ไปแก้ในชีต
-  const defaults = [
-    // [product_id, product_name, unit, opening_balance, opening_set_at, is_active]
-    ['SKU-01', 'สินค้า 1 (แก้ชื่อใน sheet Products)', 'ชิ้น', 0, nowBangkok(), true],
-    ['SKU-02', 'สินค้า 2', 'ชิ้น', 0, nowBangkok(), true],
-    ['SKU-03', 'สินค้า 3', 'ชิ้น', 0, nowBangkok(), true],
-    ['SKU-04', 'สินค้า 4', 'ชิ้น', 0, nowBangkok(), true],
-    ['SKU-05', 'สินค้า 5', 'ชิ้น', 0, nowBangkok(), true],
+  // [product_id, product_name, unit, opening_balance, is_active]
+  const defs = [
+    ['SKU-01', 'ครีมกันแดด',         'ชิ้น', 0, true],
+    ['SKU-02', 'เซรั่มโสมแดง',        'ชิ้น', 0, true],
+    ['SKU-03', 'ครีมโสมแดง',         'ชิ้น', 0, true],
+    ['SKU-04', 'เซรั่มสาหร่ายแดง',     'ชิ้น', 0, true],
+    ['SKU-05', '(ยังไม่ใช้)',         'ชิ้น', 0, false],
   ];
 
-  const existing = {};
-  const last = productsSh.getLastRow();
-  if (last >= 2) {
-    productsSh.getRange(2, 1, last - 1, 1).getValues().forEach(function (r) {
-      if (r[0]) existing[r[0]] = true;
+  // โหลด Products ที่มีอยู่
+  const productsLast = productsSh.getLastRow();
+  const productsExistingMap = {}; // product_id → row index (เริ่ม 2)
+  if (productsLast >= 2) {
+    productsSh.getRange(2, 1, productsLast - 1, 1).getValues().forEach(function (r, i) {
+      if (r[0]) productsExistingMap[r[0]] = i + 2;
     });
   }
 
-  const toAdd = defaults.filter(function (row) { return !existing[row[0]]; });
-  if (toAdd.length > 0) {
-    productsSh.getRange(productsSh.getLastRow() + 1, 1, toAdd.length, defaults[0].length).setValues(toAdd);
-  }
+  let added = 0, updated = 0;
+  const now = nowBangkok();
 
-  // sync ไป Stock เริ่ม qty_on_hand = opening_balance
-  const stockExisting = {};
+  defs.forEach(function (def) {
+    const id = def[0];
+    const rowIdx = productsExistingMap[id];
+    if (rowIdx) {
+      // update เฉพาะ name/unit/is_active — ไม่แตะ opening_balance/opening_set_at
+      productsSh.getRange(rowIdx, 2).setValue(def[1]); // product_name
+      productsSh.getRange(rowIdx, 3).setValue(def[2]); // unit
+      productsSh.getRange(rowIdx, 6).setValue(def[4]); // is_active
+      updated++;
+    } else {
+      // insert ใหม่: [product_id, product_name, unit, opening_balance, opening_set_at, is_active]
+      productsSh.appendRow([id, def[1], def[2], def[3], now, def[4]]);
+      added++;
+    }
+  });
+
+  // Stock: insert ใหม่ถ้ายังไม่มี + อัปเดต product_name (denormalized)
   const stockLast = stockSh.getLastRow();
+  const stockExistingMap = {};
   if (stockLast >= 2) {
-    stockSh.getRange(2, 1, stockLast - 1, 1).getValues().forEach(function (r) {
-      if (r[0]) stockExisting[r[0]] = true;
+    stockSh.getRange(2, 1, stockLast - 1, 1).getValues().forEach(function (r, i) {
+      if (r[0]) stockExistingMap[r[0]] = i + 2;
     });
-  }
-  const stockRows = defaults
-    .filter(function (row) { return !stockExisting[row[0]]; })
-    .map(function (row) {
-      // [product_id, product_name, qty_on_hand, last_movement_id, last_movement_at, updated_at]
-      return [row[0], row[1], row[3], '', '', nowBangkok()];
-    });
-  if (stockRows.length > 0) {
-    stockSh.getRange(stockSh.getLastRow() + 1, 1, stockRows.length, stockRows[0].length).setValues(stockRows);
   }
 
-  console.log('seedProducts: added ' + toAdd.length + ' products');
+  let stockAdded = 0, stockUpdated = 0;
+  defs.forEach(function (def) {
+    const id = def[0];
+    const rowIdx = stockExistingMap[id];
+    if (rowIdx) {
+      // อัปเดตชื่อ (denormalized) — ไม่แตะ qty_on_hand
+      stockSh.getRange(rowIdx, 2).setValue(def[1]);
+      stockSh.getRange(rowIdx, 6).setValue(now); // updated_at
+      stockUpdated++;
+    } else {
+      // [product_id, product_name, qty_on_hand, last_movement_id, last_movement_at, updated_at]
+      stockSh.appendRow([id, def[1], def[3], '', '', now]);
+      stockAdded++;
+    }
+  });
+
+  console.log('seedProducts: Products added=' + added + ' updated=' + updated +
+              '; Stock added=' + stockAdded + ' updated=' + stockUpdated);
 }
 
 /**
