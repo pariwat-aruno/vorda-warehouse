@@ -1,0 +1,212 @@
+/* ===== บริษัท วอร์ด้า สกินแคร์ จำกัด — cherry red minimal ===== */
+
+:root {
+  --cherry:       #c8102e;
+  --cherry-dark:  #9a0c24;
+  --cherry-tint:  #fbeaed;
+  --text:         #111827;
+  --muted:        #6b7280;
+  --border:       #e5e7eb;
+  --bg:           #f9fafb;
+  --white:        #ffffff;
+  --warning:      #d97706;
+  --reject:       #374151;
+  --reject-dark:  #1f2937;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "Helvetica Neue", "Sukhumvit Set", "Sarabun", sans-serif;
+  margin: 0; padding: 16px;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 15px;
+}
+
+.brand {
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 6px; font-weight: 600;
+}
+
+.logo {
+  display: block;
+  width: 72px; height: 72px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.card {
+  max-width: 480px; margin: 0 auto;
+  background: var(--white);
+  border-radius: 12px; padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+}
+
+h1 {
+  font-size: 22px; margin: 0 0 4px;
+  color: var(--cherry); font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  font-size: 13px; color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.label {
+  font-size: 11px; color: var(--muted);
+  margin-bottom: 6px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+input[type="text"],
+input[type="tel"],
+input[type="number"],
+input[type="month"],
+select {
+  width: 100%; padding: 12px;
+  font-size: 15px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--white); color: var(--text);
+  margin-bottom: 14px;
+}
+input:focus, select:focus {
+  outline: none; border-color: var(--cherry);
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.12);
+}
+
+.field { margin-bottom: 14px; }
+.field .label { margin-bottom: 6px; }
+.field input, .field select { margin-bottom: 0; }
+
+.userid-box {
+  background: var(--cherry-tint);
+  border: 1px solid var(--cherry);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 14px;
+  word-break: break-all;
+  color: var(--text);
+  margin-bottom: 14px;
+  min-height: 50px;
+  display: flex; align-items: center;
+}
+.userid-box.loading {
+  color: var(--muted); font-family: inherit;
+  background: var(--bg); border-color: var(--border);
+}
+
+.name-box {
+  font-size: 16px; color: var(--text);
+  margin-bottom: 18px;
+}
+
+button {
+  width: 100%; padding: 13px;
+  font-size: 15px; font-weight: 600; font-family: inherit;
+  border: none; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--cherry); color: var(--white);
+}
+.btn-primary:active   { background: var(--cherry-dark); }
+.btn-primary.success  { background: var(--muted); }
+.btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--white); color: var(--text);
+  border: 1px solid var(--border);
+  margin-top: 8px;
+}
+.btn-secondary:active { background: var(--bg); }
+
+.btn-neutral {
+  background: var(--reject); color: var(--white);
+}
+.btn-neutral:active { background: var(--reject-dark); }
+
+.note {
+  margin-top: 20px; padding: 12px 14px;
+  background: var(--bg);
+  border-left: 3px solid var(--cherry);
+  border-radius: 4px;
+  font-size: 13px; line-height: 1.6;
+  color: var(--text);
+}
+
+.warning-block {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  background: var(--cherry-tint);
+  border: 1px solid var(--cherry);
+  border-radius: 6px;
+  font-size: 12.5px; line-height: 1.55;
+  color: var(--cherry-dark);
+  font-weight: 500;
+}
+
+.error {
+  background: #fef2f2;
+  border-left: 3px solid var(--cherry);
+  color: var(--cherry-dark);
+  padding: 12px 14px; border-radius: 4px;
+  margin-bottom: 14px; font-size: 14px;
+}
+
+.success-banner {
+  background: var(--cherry-tint);
+  border-left: 3px solid var(--cherry);
+  color: var(--cherry-dark);
+  padding: 14px; border-radius: 4px;
+  margin-bottom: 14px; font-size: 14px;
+}
+
+.muted { color: var(--muted); }
+
+/* ===== Balance display ===== */
+.balance-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 16px;
+}
+.balance-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px; text-align: center;
+}
+.balance-item .num   { font-size: 26px; font-weight: 700; color: var(--cherry); }
+.balance-item .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.balance-total {
+  background: var(--cherry); color: var(--white);
+  border-radius: 8px; padding: 18px;
+  text-align: center; margin-bottom: 16px;
+}
+.balance-total .amount { font-size: 30px; font-weight: 700; }
+.balance-total .label  { font-size: 13px; opacity: 0.9; margin-top: 4px; color: #fff; }
+
+.payment-row {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.payment-row .meta { color: var(--muted); font-size: 13px; }
+.payment-row .status {
+  padding: 4px 10px; border-radius: 12px;
+  font-size: 12px; font-weight: 600;
+}
+.status.รอจ่าย   { background: #fef3c7; color: var(--warning); }
+.status.จ่ายแล้ว { background: var(--cherry-tint); color: var(--cherry-dark); }
+
+/* ===== Footer brand (ทุก page) ===== */
+.page-footer {
+  text-align: center; margin-top: 20px;
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase;
+}

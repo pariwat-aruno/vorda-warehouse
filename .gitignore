@@ -1,0 +1,20 @@
+.DS_Store
+node_modules/
+.env
+.env.local
+*.log
+.vscode/
+.idea/
+
+# Apps Script local (per-developer scriptId)
+.clasp.json
+
+# Apps Script local secrets (gitignored, pushed via clasp)
+apps-script/Secrets.gs
+
+# package-lock for Apps Script
+apps-script/package-lock.json
+
+# Secrets
+*-credentials.json
+*-key.json

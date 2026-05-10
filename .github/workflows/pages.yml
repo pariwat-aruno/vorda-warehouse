@@ -1,0 +1,41 @@
+name: Deploy LIFF to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'liff/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache-bust .js imports with commit SHA
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          cd liff
+          # ใส่ ?v=<sha> หลัง .js ใน import statement + script src
+          # กัน LINE webview cache
+          find . -type f \( -name "*.html" -o -name "*.js" \) \
+            -exec sed -i "s|\.js\"|.js?v=${SHA}\"|g; s|\.js'|.js?v=${SHA}'|g" {} +
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./liff
+      - id: deployment
+        uses: actions/deploy-pages@v4

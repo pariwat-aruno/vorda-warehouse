@@ -1,0 +1,330 @@
+# TASKS.md — Vorda Warehouse
+
+> Claude Code อ่านไฟล์นี้คู่กับ CONTEXT.md + docs/architecture.md + CLAUDE.md
+> ทำทีละ task ตามลำดับ ห้ามข้าม dependency
+
+## วิธีใช้
+1. หยิบ task แรกที่ยังไม่ติ๊ก
+2. อ่าน acceptance criteria
+3. Implement
+4. ทดสอบ
+5. ติ๊ก ✅ → task ถัดไป
+
+## Status legend
+- `[ ]` = ยังไม่ทำ
+- `[~]` = กำลังทำ
+- `[x]` = เสร็จและ tested
+
+---
+
+## Phase 1 — Setup ฐานข้อมูล + storage
+
+### TASK-01: Apps Script project + clasp setup
+- [x] cd apps-script/
+- [x] `npm install --save-dev @google/clasp`
+- [x] `./node_modules/.bin/clasp login` (already logged in globally)
+- [x] `./node_modules/.bin/clasp create-script --type standalone --title "vorda-warehouse-backend"`
+- [x] copy `Setup.gs / Logger.gs / Config.gs / Utils.gs / LineApi.gs / DriveStore.gs / WebApp.gs` (มีอยู่แล้ว) ไป Apps Script
+- [x] `clasp push --force`
+- **Acceptance:** เห็น 7 ไฟล์ใน Apps Script editor — ✅ pushed 18 files (17 .gs + appsscript.json)
+- **Script ID:** `1baxE8RNxwgqG3SGT0RrgV0eR1oM1r9gEjEWdoxvKeaH6pBJ3UoN7kywh`
+- **Editor:** https://script.google.com/d/1baxE8RNxwgqG3SGT0RrgV0eR1oM1r9gEjEWdoxvKeaH6pBJ3UoN7kywh/edit
+
+### TASK-02: รัน setupAll()
+- [ ] เปิด Apps Script editor → เลือก `Setup.gs`
+- [ ] รัน `setupAll()` (รวม setupDatabase + seedConfig + seedProducts + setupDrive + setupProperties)
+- [ ] อนุญาต OAuth ตามที่ขอ (Sheets + Drive + UrlFetch + Triggers + UserInfo)
+- [ ] copy SHEET_ID + DRIVE_FOLDER_ID จาก Logger output
+- **Acceptance:** Sheet 10 tab พร้อม headers + Drive folder root + 6 sub-folder + Properties มี SHEET_ID/DRIVE_FOLDER_ID/sub-folder IDs
+
+### TASK-03: แก้ชื่อสินค้าจริง 5 SKU + ยอดเริ่มต้น
+- [ ] เปิด Sheet `Products`
+- [ ] แก้ `product_name` ให้ตรงกับสินค้าจริง 5 ตัว
+- [ ] ใส่ `opening_balance` (Stock Take ครั้งแรก)
+- [ ] copy ค่าเดียวกันไป Sheet `Stock.qty_on_hand` (initial sync)
+- **Acceptance:** Products + Stock มี 5 row ตรงกัน
+
+---
+
+## Phase 2 — LINE Channel + LIFF
+
+### TASK-04: สร้าง LINE Messaging API channel
+- [ ] https://developers.line.biz/console/ → Create Provider (ถ้ายังไม่มี)
+- [ ] Create Messaging API channel
+- [ ] เปิด Webhook + ปิด Auto-reply messages
+- [ ] เปิด channel เป็น Published (Status: Public — ไม่ใช่ Developing)
+- [ ] copy `Channel access token` + `Channel secret`
+- [ ] Apps Script → Project Settings → Script Properties → ใส่:
+  - `LINE_CHANNEL_ACCESS_TOKEN`
+  - `LINE_CHANNEL_SECRET`
+- **Acceptance:** Properties มี 2 ค่านี้ + LINE bot ตอบ webhook ได้
+
+### TASK-05: สร้าง LIFF apps 7 ตัว
+- [ ] LINE Developers → Channel → LIFF tab → Add LIFF app × 7:
+
+| LIFF | Endpoint URL (placeholder ก่อน) | Size | Scope | Bot link |
+|---|---|---|---|---|
+| inbound | `https://<gh>.github.io/vorda-warehouse/inbound.html` | Full | profile, openid | Aggressive |
+| outbound | `.../outbound.html` | Full | profile, openid | Aggressive |
+| count | `.../count.html` | Full | profile, openid | Aggressive |
+| adjust | `.../adjust.html` | Full | profile, openid | Aggressive |
+| return | `.../return.html` | Full | profile, openid | Aggressive |
+| cancel | `.../cancel.html` | Full | profile, openid | Aggressive |
+| admin | `.../admin.html` | Full | profile, openid | Aggressive |
+
+- [ ] copy 7 LIFF IDs
+- [ ] แก้ `Setup.gs::setupProperties()` ใส่ LIFF_ID_* ทั้ง 7 → รัน `setupProperties()` อีกครั้ง
+- **Acceptance:** Properties มี LIFF_ID_INBOUND/OUTBOUND/COUNT/ADJUST/RETURN/CANCEL/ADMIN
+
+### TASK-06: เก็บ owner + supervisor LINE userId
+- [ ] เปิด `liff/myid.html` ผ่าน LIFF inbound (หรือ LIFF ใดก็ได้ — myid ไม่ต้องสร้าง LIFF แยก)
+- [ ] ให้ owner 2 คน + supervisor 1 คน เปิดและ copy userId
+- [ ] ใส่ Sheet `Config`:
+  - row `owner_line_user_ids` = `Uxxx,Uyyy`
+  - row `supervisor_line_user_ids` = `Uzzz`
+- **Acceptance:** isOwner('Uxxx') === true, isSupervisor('Uzzz') === true
+
+---
+
+## Phase 3 — Apps Script foundation (มีไฟล์แล้ว)
+
+### TASK-07: ตรวจ foundation ทำงาน
+- [ ] รัน `getConfig()` ใน Apps Script editor
+- [ ] ไม่มี error → return object มี SHEET_ID + LIFF_IDs + OWNER_LINE_USER_IDS
+- [ ] รัน `pushToAllOwners(['ทดสอบ push'])` → owner ได้ข้อความใน LINE
+- **Acceptance:** ผ่าน 2 อย่างข้างบน
+
+---
+
+## Phase 4 — Apps Script endpoints (Implement TODOs)
+
+### TASK-08: Submission.gs::handleCancelSubmission
+- [ ] รับ payload: `{ lineUserId, recordType, recordId, reason }`
+- [ ] เช็ค: row นี้มีจริง + lineUserId เป็น submitter1 หรือ submitter2 เอง + status ยัง pending_* + อยู่ใน window 5 นาที
+- [ ] update row: `status='cancelled', cancel_at, cancel_reason`
+- [ ] log info
+- **Acceptance:** test ผ่าน LIFF (submit แล้ว undo ได้, ครบ 5 นาทีกดไม่ได้, คนอื่นกดของเราไม่ได้)
+
+### TASK-09: Inbound.gs::handleSubmitInbound
+- [ ] dedup ผ่าน `dedupRecentSubmission_('inbound:' + lineUserId, 5)`
+- [ ] auto-register staff ถ้ายังไม่มี (Sheet Staff)
+- [ ] **กรณีไม่มี pairingMovementId (รอบ 1):**
+  - upload 4 รูป → photo_urls
+  - insert Movements row: `status='pending_partner'`, submitter1_*, photo_urls
+  - return: `{ ok: true, movementId, status: 'pending_partner' }`
+- [ ] **กรณีมี pairingMovementId (รอบ 2):**
+  - find row + ตรวจ status='pending_partner', submitter1_user_id ≠ ตัวเอง
+  - update submitter2_*, photo_urls (append)
+  - **match qty:**
+    - submitter1_qty === submitter2_qty → status='confirmed', confirmed_at, qty=submitter1_qty → apply Stock (qty_on_hand += qty) → push LINE manager
+    - ไม่ตรง → status='pending_supervisor' → pushToAllSupervisors flex card
+- **Acceptance:** ลองทั้ง 2 เคส ผ่าน LIFF (ตรง + ไม่ตรง) — Stock update ถูก, LINE alert ถูกคน
+
+### TASK-10: Outbound.gs::handleSubmitOutbound
+- [ ] เหมือน Inbound แต่ apply Stock เป็น `qty_on_hand -= qty`
+- [ ] ตรวจ qty_on_hand ก่อน apply ถ้าไม่พอ → ปฏิเสธ + push LINE manager
+- **Acceptance:** Stock ลดลงถูกต้อง + ปฏิเสธเคสไม่พอ
+
+### TASK-11: Adjust.gs::handleSubmitAdjust
+- [ ] เหมือน Inbound/Outbound แต่:
+  - field `reason` บังคับ
+  - apply Stock เป็น delta ติดลบ (ตัดออก)
+
+### TASK-12: Count.gs::handleSubmitCount
+- [ ] **ต่างจาก Movement:** ไม่ apply Stock อัตโนมัติ
+- [ ] รอบ 1: snapshot `system_qty = Stock.qty_on_hand` ตอนนี้ → insert row
+- [ ] รอบ 2: match → final_qty = submitter1_qty (ถ้าตรง)
+  - variance = final_qty - system_qty
+  - ถ้า variance === 0 → status='no_action' + push LINE manager
+  - ถ้า variance ≠ 0 → status='awaiting_owner' + pushToAllManagers พร้อมปุ่มไป admin LIFF
+- [ ] กรณีไม่ตรง → pending_supervisor (เหมือน movement)
+- **Acceptance:** owner ได้ alert เฉพาะ variance ≠ 0
+
+### TASK-13: Count.gs::handleSupervisorTiebreaker
+- [ ] เช็ค `isSupervisor(lineUserId)` ก่อน
+- [ ] รับ recordType + recordId + qty
+- [ ] update supervisor_*, final_qty (= supervisor_qty), status
+- [ ] ถ้าเป็น count → continue logic เช็ค variance (เหมือน TASK-12)
+- [ ] ถ้าเป็น movement → apply Stock + status=confirmed
+- **Acceptance:** หัวหน้าตัดสินแล้ว flow ต่อถูกต้อง
+
+### TASK-14: Adjust.gs::handleAdjustStock (owner-initiated)
+- [ ] เช็ค `isOwner(lineUserId)`
+- [ ] รับ countId + deltaQty + reason
+- [ ] insert Movement row (movement_type='adjust') — single submitter (owner เอง), ไม่ต้อง double-blind
+- [ ] apply Stock (qty_on_hand += deltaQty)
+- [ ] update Counts row: `status='resolved_by_adjust', owner_action_*`
+- [ ] push confirmation LINE owner
+- **Acceptance:** count variance หาย, Stock ตรง
+
+### TASK-15: Return.gs::handleSubmitReturn
+- [ ] dedup
+- [ ] upload VDO + รูป (ถ้ามี)
+- [ ] insert Returns row: status='pending_owner'
+- [ ] pushToAllOwners flex card (มี VDO link + ปุ่ม approve/reject/forward)
+- **Acceptance:** owner ได้ LINE flex พร้อมข้อมูลครบ
+
+### TASK-16: Return.gs::handleApproveReturn
+- [ ] เช็ค isOwner + status===pending_owner
+- [ ] decision='accept_to_stock':
+  - ตรวจ condition===good (ถ้า bad → reject อัตโนมัติ)
+  - insert Movement (movement_type='return_in', qty=+) → apply Stock
+  - update status='accepted'
+- [ ] decision='reject_bad':
+  - status='rejected', ไม่ apply Stock
+- [ ] decision='forward_to_claim':
+  - สร้าง Claim row (stage='submitting')
+  - update Returns: status='forwarded_to_claim', claim_id
+- [ ] reply LINE owner ว่าทำสำเร็จ
+
+### TASK-17: Return.gs::handleUpdateClaimStage
+- [ ] เช็ค isOwner
+- [ ] รับ claimId + newStage + screenshot (base64) + closedResult?
+- [ ] เช็ค transition ถูกต้อง (submitting→submitted→closed เท่านั้น)
+- [ ] upload screenshot → Drive
+- [ ] update Claim row
+
+### TASK-18: Cancel.gs::handleSubmitCancel + handleApproveCancel
+- [ ] submitCancel: insert Cancellations row + push owner
+- [ ] approveCancel:
+  - accept → insert Movement (cancel_in, +qty) → apply Stock → status='accepted'
+  - reject → status='rejected'
+
+### TASK-19: Owner.gs::handleOwnerDashboard
+- [ ] เช็ค isOwner
+- [ ] return:
+  - `stock` = Sheet Stock (ทุก row)
+  - `pending_returns` = Returns where status='pending_owner'
+  - `pending_cancels` = Cancellations where status='pending_owner'
+  - `pending_count_variance` = Counts where status='awaiting_owner'
+  - `open_claims` = Claims where stage ≠ 'closed'
+- **Acceptance:** dashboard LIFF render ครบ 5 section
+
+### TASK-20: FlexCard.gs — สร้าง flex card 6 ตัว
+- [ ] `buildVarianceAlertCard(count)` — count variance ≠ 0
+- [ ] `buildPendingReturnCard(returnRow)` — มี VDO link + ปุ่ม
+- [ ] `buildPendingCancelCard(cancelRow)`
+- [ ] `buildSupervisorTiebreakerCard(record)` — ขอหัวหน้าตัดสิน
+- [ ] `buildDailyReportCard(report)`
+- [ ] `buildWeeklyReportCard(report)`
+- [ ] ทุก card: header มี logo + brand, footer brand, ปุ่มเปิด admin LIFF
+- [ ] ใช้ `driveUrlToThumbnail_` แปลง Drive URLs
+
+### TASK-21: Report.gs::handleGetDailyReport + handleGetWeeklyReport
+- [ ] daily: รวบ Movements ของวันนี้ (group by movement_type) + summary by_product
+- [ ] weekly: เพิ่ม Counts ของสัปดาห์ + Returns + Cancellations ที่ closed
+
+### TASK-22: Report.gs::sendDailyReport + sendWeeklyReport (scheduled)
+- [ ] sendDailyReport: เรียก handleGetDailyReport + buildDailyReportCard + pushToAllManagers
+- [ ] sendWeeklyReport: เรียก handleGetWeeklyReport + buildWeeklyReportCard + pushToAllOwners
+- [ ] เพิ่ม `installTriggers()` ในชุด setup (ถ้ายังไม่ได้รัน)
+
+---
+
+## Phase 5 — LIFF frontend
+
+### TASK-23: liff/index.html — landing
+- [ ] หน้าแรกหลังเปิด rich menu
+- [ ] แสดง 6 ปุ่มหลัก (รับเข้า / หยิบออก / นับเทียบ / ตัดสต๊อก / ตีคืน / ยกเลิก)
+- [ ] แต่ละปุ่ม: `liff.openWindow({ url: '<page>.html', external: false })` หรือ link ตรง
+- [ ] ปุ่ม admin โผล่เฉพาะ owner/supervisor (เช็คผ่าน API getOwnerDashboard ถ้า ok=true)
+
+### TASK-24: liff/inbound.html
+- [ ] init LIFF (LIFF_ID_INBOUND) + getProfile
+- [ ] เรียก `getProducts` → fill dropdown
+- [ ] form: เลือกสินค้า + กรอก qty + ถ่ายรูป 4 มุม (กล้อง getUserMedia)
+- [ ] toggle "รอบที่ 1" หรือ "รอบที่ 2 + ใส่ MOV-...":
+  - รอบ 1: submit แสดง movement_id + ปุ่ม "คัดลอก ID"
+  - รอบ 2: input MOV-... → submit ส่ง pairingMovementId
+- [ ] หลัง submit: แสดงปุ่ม "ยกเลิกการบันทึก" countdown 5 นาที
+- [ ] ทุก field validate ก่อน submit
+
+### TASK-25: liff/outbound.html
+- [ ] copy จาก inbound + เปลี่ยน LIFF_ID + action='submitOutbound'
+
+### TASK-26: liff/count.html
+- [ ] เหมือน inbound แต่ action='submitCount' + label "นับเทียบ"
+
+### TASK-27: liff/adjust.html
+- [ ] inbound + เพิ่ม textarea reason
+
+### TASK-28: liff/return.html (ซับซ้อนสุด — มี VDO)
+- [ ] form: tracking + เลือกสินค้า + qty + checkbox "เป็นสินค้าของเรา?"
+- [ ] dropdown สภาพ (ดี / ไม่ดี)
+- [ ] **VDO recorder:** MediaRecorder API, max 30s, encode webm/mp4
+- [ ] preview VDO + ปุ่มถ่ายใหม่
+- [ ] รูปประกอบ (optional)
+- [ ] submit → action='submitReturn'
+
+### TASK-29: liff/cancel.html
+- [ ] form: tracking + สินค้า + qty + รูป
+- [ ] simple — ไม่มี VDO ไม่มี double-blind
+- [ ] submit → action='submitCancel'
+
+### TASK-30: liff/admin.html (owner LIFF)
+- [ ] init + เรียก getOwnerDashboard
+- [ ] ถ้า return error='not_owner' → แสดง "คุณไม่มีสิทธิ์เข้าถึง"
+- [ ] section 1: ยอดสต๊อก 5 SKU
+- [ ] section 2: ตีคืนรอ approve — ดู VDO + ปุ่ม accept_to_stock / reject_bad / forward_to_claim
+- [ ] section 3: ยกเลิกรอ approve — ปุ่ม accept / reject
+- [ ] section 4: count variance รอปรับยอด — ปุ่ม "ปรับยอดให้ตรง" / "ไม่ปรับยอด"
+- [ ] section 5: Claims ค้าง — ปุ่ม update stage
+- [ ] section 6: report ปุ่มดู daily / weekly
+- **Acceptance:** ทุก action submit แล้ว update dashboard ทันที
+
+---
+
+## Phase 6 — Deploy + ทดสอบ end-to-end
+
+### TASK-31: Deploy Apps Script Web App
+- [ ] Apps Script → Deploy → New deployment → Web app
+- [ ] Execute as: Me / Who has access: **Anyone**
+- [ ] copy URL → ใส่ใน:
+  - `liff/js/config.js` API_URL
+  - LINE Developers webhook URL
+
+### TASK-32: GitHub Pages
+- [ ] Create public repo `vorda-warehouse` (ถ้ายังไม่มี)
+- [ ] push code → main
+- [ ] Settings → Pages → Source: GitHub Actions (ดู `.github/workflows/pages.yml`)
+- [ ] รอ Action เสร็จ → ได้ URL `https://<gh>.github.io/vorda-warehouse/`
+
+### TASK-33: ปรับ LIFF Endpoint URL
+- [ ] LINE Developers → Channel → LIFF → แต่ละ app → แก้ Endpoint URL = GitHub Pages URL จริง
+- [ ] อย่าลืม admin.html ด้วย
+
+### TASK-34: Rich menu
+- [ ] รัน `scripts/setup_rich_menu.py` — แก้ LIFF_IDs ก่อนรัน
+- [ ] ตรวจ rich menu ในมือถือ
+
+### TASK-35: ทดสอบ end-to-end (มือถือจริง)
+- [ ] รับเข้า: 2 พนักงาน double-blind ผ่าน — Stock update
+- [ ] รับเข้า: นับไม่ตรง → หัวหน้าตัดสิน
+- [ ] หยิบออก: Stock ลด
+- [ ] หยิบออก: ของไม่พอ — ปฏิเสธ
+- [ ] นับเทียบ: variance ≠ 0 → owner ได้ alert → กดปรับยอด → Stock ตรง
+- [ ] ตัดสต๊อก: ของเสีย — Stock ลด
+- [ ] ตีคืน: ของเรา + ดี — Stock เพิ่ม
+- [ ] ตีคืน: ของเรา + ไม่ดี — Stock ไม่เปลี่ยน
+- [ ] ตีคืน: ไม่ใช่ของเรา → claim 3 ขั้น
+- [ ] ยกเลิก: tracking + รูป → owner approve → Stock เพิ่ม
+- [ ] ยกเลิก submission ใน 5 นาที — ทำงาน
+- [ ] ยกเลิก submission หลัง 5 นาที — ปฏิเสธ
+
+---
+
+## Phase 7 — Scheduled triggers
+
+### TASK-36: install daily/weekly triggers
+- [ ] รัน `Report.gs::installTriggers()` 1 ครั้ง
+- [ ] verify Apps Script → Triggers tab มี 2 trigger
+- [ ] รอวัน-เวลาจริง → ตรวจ LINE ส่งสรุปถูก
+
+---
+
+## Definition of Done
+- [ ] ทุก task ติ๊กครบ
+- [ ] Test ทุก flow ผ่านในมือถือจริง
+- [ ] CONTEXT.md ตรงกับ implementation
+- [ ] commit + push GitHub
+- [ ] ส่ง LIFF URL ให้ owner/supervisor

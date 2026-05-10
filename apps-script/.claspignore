@@ -1,0 +1,15 @@
+# clasp push เฉพาะไฟล์ที่ระบุ
+# ห้าม push node_modules, package*.json, lockfile
+
+**/**
+
+!*.gs
+!*.html
+!appsscript.json
+
+# explicit ignore กัน clasp warnings
+node_modules/**
+package.json
+package-lock.json
+.claspignore
+.clasp.json

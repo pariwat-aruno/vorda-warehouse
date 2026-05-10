@@ -1,0 +1,15 @@
+{
+  "name": "vorda-warehouse-apps-script",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Apps Script backend ของ vorda-warehouse",
+  "scripts": {
+    "push": "clasp push --force",
+    "open": "clasp open-script",
+    "logs": "clasp tail-logs",
+    "deploy": "clasp create-deployment"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.3.0"
+  }
+}

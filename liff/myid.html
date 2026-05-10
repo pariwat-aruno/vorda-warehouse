@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>LINE User ID — บริษัท วอร์ด้า สกินแคร์ จำกัด</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./img/logo.jpg" alt="VORDA SKINCARE" />
+    <div class="brand">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+    <h1>LINE User ID</h1>
+    <div class="subtitle">บังคับสำหรับทุกคน — คัดลอกเก็บไว้ก่อนใช้งาน</div>
+
+    <div id="error" class="error" style="display:none"></div>
+
+    <div class="label">ชื่อโปรไฟล์</div>
+    <div id="name" class="name-box loading">กำลังโหลด...</div>
+
+    <div class="label">User ID</div>
+    <div id="userid" class="userid-box loading">กำลังโหลด...</div>
+
+    <button id="btn-copy" class="btn-primary" disabled>คัดลอก User ID</button>
+
+    <div class="note">
+      <strong>วิธีใช้:</strong><br/>
+      1. กดปุ่ม "คัดลอก" ด้านบน<br/>
+      2. ส่ง User ID ให้เจ้าของทาง LINE<br/>
+      3. หลังจากเจ้าของบันทึกแล้ว ค่อยกลับมาลงทะเบียน
+    </div>
+  </div>
+
+  <div class="page-footer">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+
+    const nameEl   = document.getElementById('name');
+    const useridEl = document.getElementById('userid');
+    const btn      = document.getElementById('btn-copy');
+    const errEl    = document.getElementById('error');
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+      nameEl.textContent = '—';
+      useridEl.textContent = '—';
+      nameEl.classList.remove('loading');
+      useridEl.classList.remove('loading');
+    }
+
+    async function init() {
+      try {
+        if (CONFIG.DEV_MOCK_LIFF) {
+          nameEl.textContent = '(dev mock)';
+          useridEl.textContent = CONFIG.DEV_MOCK_USER_ID;
+        } else {
+          await liff.init({ liffId: CONFIG.LIFF_ID_MYID || CONFIG.LIFF_ID_INBOUND });
+          if (!liff.isLoggedIn()) { liff.login(); return; }
+          const profile = await liff.getProfile();
+          nameEl.textContent = profile.displayName || '(ไม่มีชื่อ)';
+          useridEl.textContent = profile.userId;
+        }
+        nameEl.classList.remove('loading');
+        useridEl.classList.remove('loading');
+        btn.disabled = false;
+      } catch (err) {
+        showError('Error: ' + (err && err.message ? err.message : err));
+      }
+    }
+
+    btn.addEventListener('click', async () => {
+      const uid = useridEl.textContent;
+      if (!uid || uid === '—') return;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(uid);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = uid; document.body.appendChild(ta);
+          ta.select(); document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        btn.textContent = 'คัดลอกแล้ว';
+        btn.classList.add('success');
+        setTimeout(() => {
+          btn.textContent = 'คัดลอก User ID';
+          btn.classList.remove('success');
+        }, 2000);
+      } catch (err) {
+        showError('คัดลอกไม่สำเร็จ — กดค้างที่ User ID เพื่อ copy เอง');
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
