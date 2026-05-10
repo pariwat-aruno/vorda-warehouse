@@ -57,15 +57,13 @@
 ## Phase 2 — LINE Channel + LIFF
 
 ### TASK-04: สร้าง LINE Messaging API channel
-- [ ] https://developers.line.biz/console/ → Create Provider (ถ้ายังไม่มี)
-- [ ] Create Messaging API channel
-- [ ] เปิด Webhook + ปิด Auto-reply messages
-- [ ] เปิด channel เป็น Published (Status: Public — ไม่ใช่ Developing)
-- [ ] copy `Channel access token` + `Channel secret`
-- [ ] Apps Script → Project Settings → Script Properties → ใส่:
-  - `LINE_CHANNEL_ACCESS_TOKEN`
-  - `LINE_CHANNEL_SECRET`
-- **Acceptance:** Properties มี 2 ค่านี้ + LINE bot ตอบ webhook ได้
+- [x] https://developers.line.biz/console/ → Create Provider
+- [x] Create Messaging API channel "Vorda Warehouse"
+- [x] เปิด Webhook + ปิด Auto-reply messages
+- [x] เปิด channel เป็น Published (Status: Public)
+- [x] copy `Channel access token` + `Channel secret` → ใส่ใน `apps-script/Secrets.gs` (gitignored)
+- [x] รัน `setupSecrets()` → Properties มี LINE_CHANNEL_ACCESS_TOKEN + LINE_CHANNEL_SECRET
+- **Acceptance:** Properties มี 2 ค่านี้ ✅ (LINE bot ทดสอบ webhook ทีหลัง TASK-31)
 
 ### TASK-05: สร้าง LIFF apps 7 ตัว
 - [ ] LINE Developers → Channel → LIFF tab → Add LIFF app × 7:
