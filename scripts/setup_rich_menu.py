@@ -9,11 +9,11 @@ setup_rich_menu.py — สร้าง + อัปโหลด rich menu ขอ�
 
 idempotent: ถ้าเจอ rich menu ชื่อ "vorda-warehouse-main" อยู่แล้วจะลบทิ้งก่อน
 
-Layout (2500x843, 4 cells):
-  [รับเข้า] [หยิบออก] [รายการอื่น] [เจ้าของ]
+Layout (2500x1686, 6 cells, 3 cols × 2 rows):
+  [รับเข้า]   [หยิบออก]   [นับเทียบ]
+  [ตัดสต๊อก]  [ตีคืน]     [ยกเลิก]
 
-โน้ต: "รายการอื่น" เปิด LIFF index.html ที่มี 4 ปุ่มย่อย (count/adjust/return/cancel)
-แทนที่จะใส่ทุกปุ่มใน rich menu (rich menu มีพื้นที่จำกัด)
+โน้ต: เจ้าของเข้าผ่าน direct LIFF URL หรือลิงก์ "ID ของฉัน" บนทุกหน้า
 """
 
 import json
@@ -25,26 +25,39 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFont
 
 # ----- CONFIG — LIFF IDs ของ vorda-warehouse -----
-LIFF_INBOUND  = "2010039913-l3str31E"  # LIFF_ID_INBOUND
-LIFF_OUTBOUND = "2010039913-qEVDVQCK"  # LIFF_ID_OUTBOUND
-LIFF_INDEX    = "2010039913-l3str31E"  # shared กับ inbound (index.html ยังไม่มี LIFF แยก)
-LIFF_OWNER    = "2010039913-nqodMLew"  # LIFF_ID_OWNER
+LIFF_INBOUND  = "2010039913-l3str31E"
+LIFF_OUTBOUND = "2010039913-qEVDVQCK"
+LIFF_COUNT    = "2010039913-Mwxbowp7"
+LIFF_ADJUST   = "2010039913-Qh70XgVu"
+LIFF_RETURN   = "2010039913-pbFfeqN5"
+LIFF_CANCEL   = "2010039913-qn27hLz0"
+LIFF_OWNER    = "2010039913-nqodMLew"
 
 MENU_NAME = "vorda-warehouse-main"
 IMAGE_PATH = os.path.join(os.path.dirname(__file__), "rich_menu.png")
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "liff", "img", "logo.jpg")
 
-# ขนาดมาตรฐาน rich menu (LINE บังคับ 2500x843 หรือ 2500x1686)
+# ขนาด rich menu (LINE บังคับ 2500x843 หรือ 2500x1686) — เลือก 1686 สำหรับ 2 แถว
 WIDTH = 2500
-HEIGHT = 843
+HEIGHT = 1686
 
-# cherry red palette — บริษัท วอร์ด้า สกินแคร์ จำกัด
-# 4 sections — ปุ่มเจ้าของขวาสุด สีเข้มเพื่อแยกชัด
+# layout 3 cols × 2 rows
+COLS = 3
+ROWS = 2
+
+# cherry red palette
+CHERRY      = (200, 16, 46)
+CHERRY_DARK = (154, 12, 36)
+SLATE       = (55, 65, 81)
+
+# 6 sections — รียงตามลำดับใช้งานบ่อย
 SECTIONS = [
-    {"label": "รับเข้า",     "sublabel": "จากโรงงาน",     "color": (200, 16, 46),  "liff": LIFF_INBOUND},
-    {"label": "หยิบออก",     "sublabel": "ไปแพคส่ง",      "color": (200, 16, 46),  "liff": LIFF_OUTBOUND},
-    {"label": "รายการอื่น",  "sublabel": "นับ/ตัด/คืน",   "color": (154, 12, 36),  "liff": LIFF_INDEX},
-    {"label": "เจ้าของ",     "sublabel": "ผู้บริหารเท่านั้น","color": (55, 65, 81),   "liff": LIFF_OWNER},
+    {"label": "รับเข้า",   "sublabel": "จากโรงงาน",      "color": CHERRY,      "liff": LIFF_INBOUND},
+    {"label": "หยิบออก",   "sublabel": "ไปแพคส่ง",       "color": CHERRY,      "liff": LIFF_OUTBOUND},
+    {"label": "นับเทียบ",  "sublabel": "สัปดาห์ละครั้ง",  "color": CHERRY_DARK, "liff": LIFF_COUNT},
+    {"label": "ตัดสต๊อก",  "sublabel": "ของเสีย/แตก",    "color": CHERRY_DARK, "liff": LIFF_ADJUST},
+    {"label": "ตีคืน",     "sublabel": "ลูกค้าส่งคืน",    "color": SLATE,       "liff": LIFF_RETURN},
+    {"label": "ยกเลิก",    "sublabel": "ของไม่ถึง",      "color": SLATE,       "liff": LIFF_CANCEL},
 ]
 
 LINE_API = "https://api.line.me/v2/bot"
@@ -78,12 +91,24 @@ def http_request(method, url, token, body=None, content_type="application/json")
         sys.exit(f"HTTP {e.code} {url}\n{body}")
 
 
+def _cell_rect(i):
+    """return (x0, y0, x1, y1) ของ cell index i ใน grid COLS × ROWS"""
+    cell_w = WIDTH // COLS
+    cell_h = HEIGHT // ROWS
+    col = i % COLS
+    row = i // COLS
+    x0 = col * cell_w
+    y0 = row * cell_h
+    x1 = (col + 1) * cell_w if col < COLS - 1 else WIDTH
+    y1 = (row + 1) * cell_h if row < ROWS - 1 else HEIGHT
+    return x0, y0, x1, y1
+
+
 def render_image():
-    """สร้างภาพ rich menu — 4 cells แบ่งแนวนอน"""
+    """สร้างภาพ rich menu — COLS × ROWS grid"""
     img = Image.new("RGB", (WIDTH, HEIGHT), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
 
-    # font — fallback หาฟอนต์ไทยที่มี
     font_label = None
     font_sub = None
     for path in [
@@ -93,65 +118,68 @@ def render_image():
         "C:/Windows/Fonts/leelawui.ttf",
     ]:
         if os.path.exists(path):
-            font_label = ImageFont.truetype(path, 90)
-            font_sub = ImageFont.truetype(path, 50)
+            font_label = ImageFont.truetype(path, 130)
+            font_sub = ImageFont.truetype(path, 70)
             break
     if font_label is None:
         font_label = ImageFont.load_default()
         font_sub = ImageFont.load_default()
 
-    # logo (ถ้ามี) — แสดงตรงกลางบน เป็น watermark จางๆ
+    # logo (top-left ของแต่ละ cell)
+    logo = None
     if os.path.exists(LOGO_PATH):
         try:
             logo = Image.open(LOGO_PATH).convert("RGBA")
-            logo.thumbnail((140, 140))
+            logo.thumbnail((110, 110))
         except Exception:
             logo = None
-    else:
-        logo = None
 
-    cell_w = WIDTH // len(SECTIONS)
     for i, sec in enumerate(SECTIONS):
-        x0 = i * cell_w
-        x1 = (i + 1) * cell_w if i < len(SECTIONS) - 1 else WIDTH
+        x0, y0, x1, y1 = _cell_rect(i)
+        cell_w_actual = x1 - x0
+        cell_h_actual = y1 - y0
+
         # background
-        draw.rectangle([(x0, 0), (x1, HEIGHT)], fill=sec["color"])
+        draw.rectangle([(x0, y0), (x1, y1)], fill=sec["color"])
+
+        # divider lines (white, 4px) ระหว่าง cell
+        if x0 > 0:
+            draw.rectangle([(x0 - 2, y0), (x0 + 2, y1)], fill=(255, 255, 255))
+        if y0 > 0:
+            draw.rectangle([(x0, y0 - 2), (x1, y0 + 2)], fill=(255, 255, 255))
 
         # label (กลาง)
         label = sec["label"]
         bbox = draw.textbbox((0, 0), label, font=font_label)
         lw = bbox[2] - bbox[0]
         lh = bbox[3] - bbox[1]
-        cx = x0 + (cell_w if i < len(SECTIONS) - 1 else (WIDTH - x0)) // 2
-        ly = HEIGHT // 2 - lh // 2 - 30
+        cx = x0 + cell_w_actual // 2
+        ly = y0 + cell_h_actual // 2 - lh // 2 - 40
         draw.text((cx - lw // 2, ly), label, fill=(255, 255, 255), font=font_label)
 
         # sublabel
         sub = sec["sublabel"]
         bbox2 = draw.textbbox((0, 0), sub, font=font_sub)
         sw = bbox2[2] - bbox2[0]
-        sh = bbox2[3] - bbox2[1]
-        sy = ly + lh + 20
-        draw.text((cx - sw // 2, sy), sub, fill=(255, 255, 255, 220), font=font_sub)
+        sy = ly + lh + 30
+        draw.text((cx - sw // 2, sy), sub, fill=(255, 255, 255), font=font_sub)
 
         # logo top-left ของ cell
         if logo:
-            img.paste(logo, (x0 + 30, 30), logo)
+            img.paste(logo, (x0 + 40, y0 + 40), logo)
 
     img.save(IMAGE_PATH, "PNG")
     print(f"image saved: {IMAGE_PATH}")
 
 
 def build_areas():
-    """สร้าง areas สำหรับ richMenu API — 4 cells แบ่งแนวนอน"""
-    cell_w = WIDTH // len(SECTIONS)
+    """areas สำหรับ richMenu API — grid COLS × ROWS"""
     areas = []
     for i, sec in enumerate(SECTIONS):
-        x = i * cell_w
-        w = cell_w if i < len(SECTIONS) - 1 else WIDTH - x
+        x0, y0, x1, y1 = _cell_rect(i)
         liff_url = f"line://app/{sec['liff']}"
         areas.append({
-            "bounds": {"x": x, "y": 0, "width": w, "height": HEIGHT},
+            "bounds": {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0},
             "action": {"type": "uri", "uri": liff_url},
         })
     return areas
