@@ -81,6 +81,12 @@ function _handleLiffAction_(body) {
       case 'getProducts':
         result = handleGetProducts(payload); break;
 
+      // REGISTRATION — guard ทุก LIFF page เรียก getMyStatus ก่อนทำอะไร
+      case 'getMyStatus':
+        result = handleGetMyStatus(payload); break;
+      case 'registerSelf':
+        result = handleRegisterSelf(payload); break;
+
       // SUPERVISOR: ตัดสิน double-blind ที่นับไม่ตรง
       case 'submitSupervisorTiebreaker':
         result = handleSupervisorTiebreaker(payload); break;

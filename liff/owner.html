@@ -100,7 +100,8 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script type="module">
     import { CONFIG } from './js/config.js';
-    import { initAuth, state } from './js/auth.js';
+    import { state } from './js/auth.js';
+    import { ensureRegistered } from './js/guard.js';
     import { api } from './js/api.js';
     import { showError, clearError } from './js/utils.js';
 
@@ -128,8 +129,9 @@
     }
 
     try {
-      await initAuth(CONFIG.LIFF_ID_OWNER);
+      await ensureRegistered(CONFIG.LIFF_ID_OWNER);
     } catch (err) {
+      if (String(err.message || '').indexOf('redirecting') === 0) throw err;
       showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message);
     }
 

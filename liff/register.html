@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ลงทะเบียน — คลัง Vorda</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./img/logo.jpg" alt="VORDA SKINCARE" />
+    <div class="brand">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+    <h1>ลงทะเบียนใช้งาน</h1>
+    <div class="subtitle">ใส่ชื่อของคุณก่อนใช้งานครั้งแรก</div>
+
+    <div id="error" class="error" style="display:none"></div>
+
+    <div id="welcome" class="warning-block" style="display:none">
+      สวัสดี <strong id="line-name"></strong> — ใส่ชื่อที่ใช้ในระบบคลัง (จะแสดงในใบรับเข้า/หยิบออก/ฯลฯ)
+    </div>
+
+    <div class="field">
+      <div class="label">ชื่อในระบบ</div>
+      <input id="name-input" type="text" placeholder="เช่น สมหญิง / Aiko" maxlength="60" />
+    </div>
+
+    <div class="field">
+      <div class="label">ขอสิทธิ์ (optional)</div>
+      <select id="role-select">
+        <option value="">พนักงาน (default — ไม่ต้องขออะไร)</option>
+        <option value="supervisor">หัวหน้าคลัง (รอเจ้าของ approve)</option>
+        <option value="owner">เจ้าของ (รอเจ้าของ approve)</option>
+      </select>
+      <div class="muted" style="font-size:12px; margin-top:-8px; margin-bottom:14px">
+        พนักงาน = ใช้ได้ทันที. หัวหน้า/เจ้าของ = เจ้าของระบบต้องอนุมัติก่อน
+      </div>
+    </div>
+
+    <button id="submit-btn" class="btn-primary" type="button">ลงทะเบียน</button>
+
+    <div id="success-block" style="display:none">
+      <div class="success-banner">ลงทะเบียนสำเร็จ — กำลังกลับไปหน้าเดิม...</div>
+    </div>
+
+    <div class="note">
+      <strong>หมายเหตุ:</strong><br/>
+      ชื่อนี้จะแก้ได้ทีหลังผ่าน LIFF เจ้าของ (สำหรับ owner) หรือสามารถลงทะเบียนใหม่ในหน้านี้
+    </div>
+  </div>
+
+  <div class="page-footer">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+    import { initAuth, state } from './js/auth.js';
+    import { api } from './js/api.js';
+    import { showError, clearError } from './js/utils.js';
+
+    const ui = {
+      err: document.getElementById('error'),
+      welcome: document.getElementById('welcome'),
+      lineName: document.getElementById('line-name'),
+      nameInput: document.getElementById('name-input'),
+      roleSel: document.getElementById('role-select'),
+      submitBtn: document.getElementById('submit-btn'),
+      successBlock: document.getElementById('success-block'),
+    };
+
+    // returnTo: หน้าที่จะกลับไปหลัง register (default = index.html)
+    const params = new URLSearchParams(location.search);
+    const returnTo = params.get('returnTo') || './index.html';
+
+    try {
+      await initAuth(CONFIG.LIFF_ID_INBOUND); // ใช้ inbound LIFF
+    } catch (err) {
+      showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message);
+    }
+
+    // pre-fill จาก LINE displayName
+    if (state.profile && state.profile.displayName) {
+      ui.lineName.textContent = state.profile.displayName;
+      ui.welcome.style.display = 'block';
+      ui.nameInput.value = state.profile.displayName;
+    }
+
+    // ถ้า register ไปแล้วและมีชื่อ → pre-fill จากระบบ
+    try {
+      const st = await api.post('getMyStatus', { lineUserId: state.lineUserId });
+      if (st.registered && st.name) {
+        ui.nameInput.value = st.name;
+      }
+    } catch (err) {
+      // ignore — first time may not be registered yet
+    }
+
+    ui.submitBtn.addEventListener('click', async () => {
+      clearError(ui.err);
+      const name = ui.nameInput.value.trim();
+      const requestedRole = ui.roleSel.value;
+      if (!name) return showError(ui.err, 'ใส่ชื่อก่อน');
+      if (name.length < 2) return showError(ui.err, 'ชื่อสั้นเกินไป (ต้องยาว ≥ 2 ตัวอักษร)');
+
+      ui.submitBtn.disabled = true;
+      ui.submitBtn.textContent = 'กำลังบันทึก...';
+      try {
+        const res = await api.post('registerSelf', {
+          lineUserId: state.lineUserId,
+          name: name,
+          requestedRole: requestedRole,
+        });
+        ui.successBlock.style.display = 'block';
+        ui.submitBtn.textContent = res.created ? 'สร้างใหม่สำเร็จ' : 'แก้ข้อมูลสำเร็จ';
+        setTimeout(() => { location.replace(returnTo); }, 1500);
+      } catch (err) {
+        ui.submitBtn.disabled = false;
+        ui.submitBtn.textContent = 'ลงทะเบียน';
+        showError(ui.err, 'บันทึกไม่ได้: ' + (err.code || err.message)
+          + (err.data && err.data.message ? ' — ' + err.data.message : ''));
+      }
+    });
+  </script>
+</body>
+</html>

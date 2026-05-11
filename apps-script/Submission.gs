@@ -320,6 +320,166 @@ function safePushToAllOwners_(messages, contextFn) {
 }
 
 // =====================================================================
+// REGISTRATION — first-time self-register
+// =====================================================================
+
+/**
+ * เช็คสถานะ user ปัจจุบัน — ใช้ guard ทุก LIFF page
+ *
+ * payload: { lineUserId }
+ * return: {
+ *   ok, registered: bool, name: string, role: 'staff'|'supervisor'|'owner',
+ *   requested_role?: 'supervisor'|'owner' (ถ้าขอเพิ่ม), is_owner, is_supervisor,
+ *   staff_id?: string
+ * }
+ */
+function handleGetMyStatus(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
+
+  try {
+    const staff = findStaffByLineUserId(lineUserId);
+    const isOwn = isOwner(lineUserId);
+    const isSup = isSupervisor(lineUserId);
+    const hasName = !!(staff && staff.name && staff.name !== 'unknown');
+
+    return {
+      ok: true,
+      registered: !!(staff && hasName),
+      name: (staff && staff.name) || '',
+      staff_id: (staff && staff.staff_id) || '',
+      role: (staff && staff.role) || (isOwn ? 'owner' : (isSup ? 'supervisor' : 'staff')),
+      requested_role: (staff && staff.requested_role) || '',
+      is_owner: isOwn,
+      is_supervisor: isSup,
+    };
+  } catch (err) {
+    logError('handleGetMyStatus', err.message);
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/**
+ * user ลงทะเบียนเอง ครั้งแรก (หรือแก้ชื่อ)
+ *
+ * payload: { lineUserId, name, requestedRole? }
+ *   - requestedRole: 'supervisor' | 'owner' (optional) — owner เห็นใน dashboard แล้วค่อย approve
+ */
+function handleRegisterSelf(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const name = String(payload.name || '').trim();
+  const requestedRole = String(payload.requestedRole || '').trim().toLowerCase();
+
+  if (!lineUserId || !name) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'name'] };
+  }
+  if (name.length < 2 || name.length > 60) {
+    return { ok: false, error: 'name_invalid', message: 'ชื่อต้องยาว 2-60 ตัวอักษร' };
+  }
+  if (requestedRole && requestedRole !== 'supervisor' && requestedRole !== 'owner') {
+    return { ok: false, error: 'invalid_requested_role', valid: ['supervisor', 'owner'] };
+  }
+
+  if (!dedupRecentSubmission_('register:' + lineUserId, 3)) {
+    return { ok: false, error: 'duplicate_request' };
+  }
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
+    if (!sh) throw new Error('sheet Staff not found');
+
+    const existing = findStaffByLineUserId(lineUserId);
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+
+    // ตรวจ schema — มี requested_role col ไหม (อาจไม่มีใน Sheet เก่า)
+    let requestedRoleColIdx = headers.indexOf('requested_role');
+    if (requestedRoleColIdx < 0 && requestedRole) {
+      // เพิ่มคอลัมน์ใหม่ปลาย
+      sh.getRange(1, headers.length + 1).setValue('requested_role').setFontWeight('bold');
+      requestedRoleColIdx = headers.length;
+    }
+
+    if (existing) {
+      // update name (+ requested_role)
+      _updateStaffName_(sh, lineUserId, name);
+      if (requestedRoleColIdx >= 0) {
+        const last = sh.getLastRow();
+        const luidIdx = headers.indexOf('line_user_id');
+        const data = sh.getRange(2, luidIdx + 1, last - 1, 1).getValues();
+        for (let i = 0; i < data.length; i++) {
+          if (String(data[i][0]) === String(lineUserId)) {
+            sh.getRange(i + 2, requestedRoleColIdx + 1).setValue(requestedRole);
+            break;
+          }
+        }
+      }
+      logInfo('handleRegisterSelf', 'updated', { lineUserId: lineUserId, name: name, requestedRole: requestedRole });
+
+      // ถ้าขอ owner/supervisor → push owner ให้ approve
+      if (requestedRole) {
+        safePushToAllOwners_([{
+          type: 'text',
+          text:
+            '⚠️ คำขอเพิ่มสิทธิ์\n' +
+            'ชื่อ: ' + name + '\n' +
+            'userId: ' + lineUserId + '\n' +
+            'ขอเป็น: ' + (requestedRole === 'owner' ? 'เจ้าของ' : 'หัวหน้าคลัง') + '\n' +
+            'ดูใน LIFF เจ้าของ → จัดการสิทธิ์',
+        }], 'handleRegisterSelf');
+      }
+
+      return { ok: true, updated: true, name: name, requested_role: requestedRole, staff_id: existing.staff_id };
+    }
+
+    // สร้างใหม่
+    const last = sh.getLastRow();
+    let maxNum = 0;
+    if (last >= 2) {
+      sh.getRange(2, 1, last - 1, 1).getValues().forEach(function (r) {
+        const id = String(r[0] || '');
+        const m = id.match(/^S-(\d+)$/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+    }
+    const newId = 'S-' + padLeft_(maxNum + 1, 3);
+    const role = isOwner(lineUserId) ? 'owner' : (isSupervisor(lineUserId) ? 'supervisor' : 'staff');
+    const now = nowBangkok();
+    // มาตรฐาน row: [staff_id, name, role, line_user_id, is_active, registered_at, (requested_role)?]
+    const row = [newId, name, role, lineUserId, true, now];
+    if (requestedRoleColIdx >= 0) {
+      while (row.length < requestedRoleColIdx) row.push('');
+      row[requestedRoleColIdx] = requestedRole;
+    }
+    sh.appendRow(row);
+
+    logInfo('handleRegisterSelf', 'created', { staffId: newId, lineUserId: lineUserId, name: name, requestedRole: requestedRole });
+
+    if (requestedRole) {
+      safePushToAllOwners_([{
+        type: 'text',
+        text:
+          '⚠️ ลงทะเบียนใหม่ — ขอเพิ่มสิทธิ์\n' +
+          'ชื่อ: ' + name + '\n' +
+          'userId: ' + lineUserId + '\n' +
+          'ขอเป็น: ' + (requestedRole === 'owner' ? 'เจ้าของ' : 'หัวหน้าคลัง') + '\n' +
+          'ดูใน LIFF เจ้าของ → จัดการสิทธิ์',
+      }], 'handleRegisterSelf');
+    }
+
+    return { ok: true, created: true, staff_id: newId, name: name, role: role, requested_role: requestedRole };
+  } catch (err) {
+    logError('handleRegisterSelf', err.message, { lineUserId: lineUserId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+// =====================================================================
 // GET PRODUCTS — dropdown สำหรับ LIFF
 // =====================================================================
 

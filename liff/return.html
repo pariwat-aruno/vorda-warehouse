@@ -106,7 +106,8 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script type="module">
     import { CONFIG } from './js/config.js';
-    import { initAuth, state } from './js/auth.js';
+    import { state } from './js/auth.js';
+    import { ensureRegistered } from './js/guard.js';
     import { api } from './js/api.js';
     import { showError, clearError } from './js/utils.js';
 
@@ -150,8 +151,15 @@
     let recStartedAt = 0;
 
     try {
-      await initAuth(CONFIG.LIFF_ID_RETURN);
-    } catch (err) { showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message); }
+      await ensureRegistered(CONFIG.LIFF_ID_RETURN);
+    } catch (err) {
+      if (String(err.message || '').indexOf('redirecting') === 0) throw err;
+      showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message);
+    }
+    if (state.myStatus && state.myStatus.name) {
+      state.profile = state.profile || {};
+      state.profile.displayName = state.myStatus.name;
+    }
 
     try {
       const res = await api.post('getProducts', { lineUserId: state.lineUserId });

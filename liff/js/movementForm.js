@@ -25,7 +25,8 @@
  */
 
 import { CONFIG } from './config.js';
-import { initAuth, state } from './auth.js';
+import { state } from './auth.js';
+import { ensureRegistered } from './guard.js';
 import { api } from './api.js';
 import { startCamera, captureFromVideoWithStamp, stopCamera } from './camera.js';
 import { showError, clearError } from './utils.js';
@@ -77,12 +78,18 @@ export async function initMovementForm(opts) {
   let undoTimer = null;
   let undoExpiresAt = 0;
 
-  // ===== auth =====
+  // ===== auth + registration guard =====
   try {
-    await initAuth(cfg.liffId);
+    await ensureRegistered(cfg.liffId);
   } catch (err) {
+    if (String(err.message || '').indexOf('redirecting') === 0) return; // กำลัง redirect ไป register
     showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message);
     return;
+  }
+  // ใช้ชื่อจาก myStatus (ที่ user ใส่เอง) แทน LINE displayName
+  if (state.myStatus && state.myStatus.name) {
+    state.profile = state.profile || {};
+    state.profile.displayName = state.myStatus.name;
   }
 
   // ===== products =====
