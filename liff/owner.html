@@ -37,13 +37,10 @@
         </div>
       </div>
 
-      <!-- Section 1: Stock -->
+      <!-- Section 1: Stock + Product management -->
       <div class="dash-section">
-        <h2>ยอดสต๊อก</h2>
-        <table class="stock-table">
-          <thead><tr><th>สินค้า</th><th style="text-align:right">คงเหลือ</th></tr></thead>
-          <tbody id="stock-tbody"></tbody>
-        </table>
+        <h2>สินค้า + ยอดสต๊อก <button id="add-product-btn" class="link" type="button" style="float:right; color: var(--cherry); background:none; border:none; font-weight:600; cursor:pointer;">+ เพิ่มสินค้า</button></h2>
+        <div id="products-list"></div>
       </div>
 
       <!-- Section 1.5: Pending Movements (single-staff mode) -->
@@ -100,7 +97,26 @@
         <div id="staff-list"></div>
       </div>
 
-      <!-- Section 7: Reports -->
+      <!-- Section 7: History / Audit -->
+      <div class="dash-section">
+        <h2>ประวัติ approve <span id="history-count" class="muted"></span></h2>
+        <div class="row" style="margin-bottom:10px">
+          <select id="history-type" style="margin-bottom:0">
+            <option value="all">ทุกประเภท</option>
+            <option value="movement">Movement (รับ/หยิบ/เสีย)</option>
+            <option value="return">ตีคืน</option>
+            <option value="cancel">ยกเลิก</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <input id="history-from" type="date" style="margin-bottom:0" placeholder="จากวันที่" />
+          <input id="history-to" type="date" style="margin-bottom:0" placeholder="ถึงวันที่" />
+        </div>
+        <button id="history-load-btn" class="btn-secondary" type="button" style="margin-bottom:12px">โหลดประวัติ</button>
+        <div id="history-list"></div>
+      </div>
+
+      <!-- Section 8: Reports -->
       <div class="dash-section">
         <h2>รายงาน</h2>
         <div class="row">
@@ -159,12 +175,14 @@
       ui.loading.style.display = 'block';
       ui.dash.style.display = 'none';
       try {
-        const [data, users] = await Promise.all([
+        const [data, users, productsRes] = await Promise.all([
           api.post('getOwnerDashboard', { lineUserId: state.lineUserId }),
           api.post('listUsers', { lineUserId: state.lineUserId }),
+          api.post('listProducts', { lineUserId: state.lineUserId }),
         ]);
         renderDashboard(data);
         renderUsers(users);
+        renderProducts(productsRes.products || []);
         ui.loading.style.display = 'none';
         ui.dash.style.display = 'block';
       } catch (err) {
@@ -174,6 +192,87 @@
         } else {
           showError(ui.err, 'โหลด dashboard ไม่สำเร็จ: ' + (err.code || err.message));
         }
+      }
+    }
+
+    function renderProducts(products) {
+      const container = document.getElementById('products-list');
+      container.innerHTML = '';
+      if (!products.length) {
+        container.innerHTML = '<div class="empty">ยังไม่มีสินค้า — กด "+ เพิ่มสินค้า"</div>';
+        return;
+      }
+      // sort: active first, by name
+      const sorted = products.slice().sort((a, b) => {
+        if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+        return String(a.product_name).localeCompare(b.product_name);
+      });
+      sorted.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'dash-item';
+        if (!p.is_active) div.style.opacity = '0.5';
+        const inactiveTag = p.is_active ? '' : ' <span style="color:var(--muted); font-size:11px">(ปิดใช้งาน)</span>';
+        div.innerHTML =
+          '<div><strong>' + esc(p.product_name) + '</strong>' + inactiveTag + '</div>' +
+          '<div class="meta">' + esc(p.product_id) + ' · คงเหลือ <strong>' + p.qty_on_hand + ' ' + esc(p.unit || 'ชิ้น') + '</strong></div>' +
+          '<div class="actions"></div>';
+        const acts = div.querySelector('.actions');
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-secondary'; editBtn.textContent = 'แก้ชื่อ/หน่วย';
+        editBtn.onclick = () => editProduct(p);
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = p.is_active ? 'btn-neutral' : 'btn-primary';
+        toggleBtn.textContent = p.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน';
+        toggleBtn.onclick = () => toggleProduct(p);
+        acts.appendChild(editBtn); acts.appendChild(toggleBtn);
+        container.appendChild(div);
+      });
+    }
+
+    async function addProduct() {
+      const name = prompt('ชื่อสินค้าใหม่:', '');
+      if (!name || !name.trim()) return;
+      const unit = prompt('หน่วย (เช่น ชิ้น / ขวด):', 'ชิ้น') || 'ชิ้น';
+      try {
+        const res = await api.post('addProduct', {
+          lineUserId: state.lineUserId, name: name.trim(), unit: unit.trim(),
+        });
+        flash(ui.ok, 'เพิ่ม ' + res.product_id + ' = ' + res.name);
+        await loadDashboard();
+      } catch (err) {
+        showError(ui.err, 'เพิ่มไม่ได้: ' + (err.code || err.message)
+          + (err.data && err.data.message ? ' — ' + err.data.message : ''));
+      }
+    }
+
+    async function editProduct(p) {
+      const newName = prompt('ชื่อสินค้า:', p.product_name);
+      if (newName === null) return;
+      const newUnit = prompt('หน่วย:', p.unit || 'ชิ้น');
+      if (newUnit === null) return;
+      try {
+        await api.post('updateProduct', {
+          lineUserId: state.lineUserId, productId: p.product_id,
+          name: newName.trim(), unit: newUnit.trim(),
+        });
+        flash(ui.ok, p.product_id + ' แก้ไขแล้ว');
+        await loadDashboard();
+      } catch (err) {
+        showError(ui.err, 'แก้ไขไม่ได้: ' + (err.code || err.message));
+      }
+    }
+
+    async function toggleProduct(p) {
+      const newActive = !p.is_active;
+      if (!confirm((newActive ? 'เปิดใช้งาน ' : 'ปิดใช้งาน ') + p.product_name + ' ?')) return;
+      try {
+        await api.post('updateProduct', {
+          lineUserId: state.lineUserId, productId: p.product_id, isActive: newActive,
+        });
+        flash(ui.ok, p.product_id + (newActive ? ' เปิดใช้งานแล้ว' : ' ปิดใช้งานแล้ว'));
+        await loadDashboard();
+      } catch (err) {
+        showError(ui.err, 'เปลี่ยนสถานะไม่ได้: ' + (err.code || err.message));
       }
     }
 
@@ -196,14 +295,7 @@
         }
       };
 
-      // Stock
-      ui.stockBody.innerHTML = '';
-      (d.stock || []).forEach(function (s) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + esc(s.product_name) + '</td>'
-          + '<td class="qty">' + s.qty_on_hand + ' ' + esc(s.unit || 'ชิ้น') + '</td>';
-        ui.stockBody.appendChild(tr);
-      });
+      // Stock — render ผ่าน renderProducts() (เรียกใน loadDashboard แล้ว)
 
       // Pending Movements (single-staff mode)
       const movList = document.getElementById('movements-list');
@@ -755,6 +847,134 @@
     document.getElementById('add-sup-btn').addEventListener('click', () => addManager('supervisor'));
 
     document.getElementById('reload-btn').addEventListener('click', loadDashboard);
+    document.getElementById('add-product-btn').addEventListener('click', addProduct);
+
+    // ===== History / audit =====
+    async function loadHistory() {
+      const type = document.getElementById('history-type').value;
+      const from = document.getElementById('history-from').value;
+      const to = document.getElementById('history-to').value;
+      const list = document.getElementById('history-list');
+      const cnt = document.getElementById('history-count');
+      list.innerHTML = '<div class="empty">กำลังโหลด...</div>';
+      try {
+        const res = await api.post('getHistory', {
+          lineUserId: state.lineUserId, type: type, from: from, to: to, limit: 200,
+        });
+        cnt.textContent = '(' + res.count + ')';
+        list.innerHTML = '';
+        if (!res.items.length) {
+          list.innerHTML = '<div class="empty">ไม่พบข้อมูล</div>';
+          return;
+        }
+        res.items.forEach(it => list.appendChild(makeHistoryItem(it)));
+      } catch (err) {
+        list.innerHTML = '';
+        showError(ui.err, 'โหลดไม่ได้: ' + (err.code || err.message));
+      }
+    }
+
+    function makeHistoryItem(it) {
+      const div = document.createElement('div');
+      div.className = 'dash-item clickable';
+      const kind = it.kind;
+      const photoCount = String(it.photo_urls || '').split(',').filter(u => u.trim()).length;
+      const vdoTag = it.video_url ? ' · 🎬' : '';
+      let title, sub, statusColor;
+      if (kind === 'movement') {
+        const typeLabel = it.movement_type === 'inbound' ? 'รับเข้า'
+                        : it.movement_type === 'outbound' ? 'เตรียมแพ็ค'
+                        : it.movement_type === 'adjust' ? 'เสียหาย'
+                        : it.movement_type === 'return_in' ? 'ตีคืน-เข้า'
+                        : it.movement_type === 'cancel_in' ? 'ยกเลิก-เข้า'
+                        : it.movement_type;
+        title = typeLabel + ' · ' + it.movement_id;
+        sub = it.product_name + ' × ' + Math.abs(Number(it.qty || 0)) + ' ชิ้น';
+        statusColor = '#16a34a';
+      } else if (kind === 'return') {
+        title = 'ตีคืน · ' + it.return_id;
+        sub = (it.product_name || '(ไม่ใช่ของเรา)') + ' · status: ' + it.status;
+        statusColor = it.status === 'accepted' ? '#16a34a' : '#6b6b6b';
+      } else if (kind === 'cancel') {
+        title = 'ยกเลิก · ' + it.cancel_id;
+        sub = it.product_name + ' · status: ' + it.status;
+        statusColor = it.status === 'accepted' ? '#16a34a' : '#6b6b6b';
+      }
+      div.innerHTML =
+        '<div><strong>' + esc(title) + '</strong></div>' +
+        '<div class="meta">' + esc(sub) + '</div>' +
+        '<div class="meta">' + fmtDateTime(it.when) + ' · 📸 ' + photoCount + vdoTag + '</div>' +
+        '<a class="view-link">ดูรายละเอียด →</a>';
+      div.onclick = () => openHistoryDetail(it);
+      return div;
+    }
+
+    function openHistoryDetail(it) {
+      const kind = it.kind;
+      let title, rows, photoUrls, videoUrl;
+      if (kind === 'movement') {
+        const typeLabel = it.movement_type === 'inbound' ? 'รับเข้า'
+                        : it.movement_type === 'outbound' ? 'เตรียมแพ็ค'
+                        : it.movement_type === 'adjust' ? 'เสียหาย'
+                        : it.movement_type === 'return_in' ? 'ตีคืน-เข้า'
+                        : it.movement_type === 'cancel_in' ? 'ยกเลิก-เข้า'
+                        : it.movement_type;
+        title = typeLabel + ' (confirmed)';
+        rows = [
+          ['ประเภท', typeLabel],
+          ['รหัส', it.movement_id],
+          ['สินค้า', it.product_name],
+          ['จำนวน', Math.abs(Number(it.qty || 0)) + ' ชิ้น'],
+          ...(it.reason ? [['เหตุผล', it.reason]] : []),
+          ...(it.related_doc_id ? [['อ้างอิง', it.related_doc_id]] : []),
+          ['คนนับ 1', (it.submitter1_name || '-') + (it.submitter1_qty ? ' = ' + it.submitter1_qty : '')],
+          ...(it.submitter2_name ? [['คนนับ 2', it.submitter2_name + ' = ' + it.submitter2_qty]] : []),
+          ...(it.supervisor_name ? [['หัวหน้าตัดสิน', it.supervisor_name + ' = ' + it.supervisor_qty]] : []),
+          ['ส่งเมื่อ', fmtDateTime(it.submitter1_at || it.created_at)],
+          ['Confirmed เมื่อ', fmtDateTime(it.confirmed_at)],
+        ];
+        photoUrls = it.photo_urls;
+      } else if (kind === 'return') {
+        const items = parseItems(it.items_json, it.product_name, it.qty);
+        title = 'ตีคืน · ' + it.return_id;
+        rows = [
+          ['รหัส', it.return_id],
+          ['tracking', it.tracking_number],
+          ...itemsToRows(items),
+          ['สภาพ', it.condition === 'good' ? 'ดี' : 'ไม่ดี'],
+          ['ของเรา', it.is_our_product === true || String(it.is_our_product) === 'true' ? 'ใช่' : 'ไม่ใช่'],
+          ['decision', it.owner_decision || '-'],
+          ['status', it.status, '#c8102e'],
+          ['พนักงาน', it.staff_name || '-'],
+          ['ส่งเมื่อ', fmtDateTime(it.staff_at)],
+          ['Owner approve', fmtDateTime(it.owner_at)],
+        ];
+        photoUrls = it.photo_urls;
+        videoUrl = it.video_url;
+      } else if (kind === 'cancel') {
+        const items = parseItems(it.items_json, it.product_name, it.qty);
+        title = 'ยกเลิก · ' + it.cancel_id;
+        rows = [
+          ['รหัส', it.cancel_id],
+          ['tracking', it.tracking_number],
+          ...itemsToRows(items),
+          ['status', it.status, '#c8102e'],
+          ['พนักงาน', it.staff_name || '-'],
+          ['ส่งเมื่อ', fmtDateTime(it.staff_at)],
+          ['Owner approve', fmtDateTime(it.owner_at)],
+        ];
+        photoUrls = it.photo_urls;
+      }
+      showDetailModal({
+        title: title,
+        rows: rows,
+        photoUrls: photoUrls,
+        videoUrl: videoUrl,
+        actions: [],  // history is read-only
+      });
+    }
+
+    document.getElementById('history-load-btn').addEventListener('click', loadHistory);
 
     document.getElementById('daily-btn').addEventListener('click', async function () {
       this.disabled = true; this.textContent = 'กำลังส่ง...';

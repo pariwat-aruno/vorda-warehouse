@@ -38,24 +38,17 @@ function uploadImage(base64, filename, subfolder) {
   const folderId = PropertiesService.getScriptProperties().getProperty(propKey);
   if (!folderId) throw new Error('uploadImage: ' + propKey + ' not set');
 
-  // strip data: prefix ถ้ามี
-  let raw = base64;
-  let mimeType = 'image/jpeg';
-  const m = base64.match(/^data:([^;]+);base64,(.+)$/);
-  if (m) {
-    mimeType = m[1];
-    raw = m[2];
-  }
-
+  // strip data: prefix ถ้ามี — รองรับ data:mime;param=val;base64,xxx
+  const parsed = _parseDataUrl_(base64, 'image/jpeg');
   let bytes;
   try {
-    bytes = Utilities.base64Decode(raw);
+    bytes = Utilities.base64Decode(parsed.raw);
   } catch (err) {
     logError('uploadImage', 'base64 decode failed', { filename: filename, err: err.message });
     throw new Error('invalid_base64');
   }
 
-  const blob = Utilities.newBlob(bytes, mimeType, filename);
+  const blob = Utilities.newBlob(bytes, parsed.mimeType, filename);
   const folder = DriveApp.getFolderById(folderId);
   const file = folder.createFile(blob);
 
@@ -94,13 +87,9 @@ function uploadVideo(base64, filename, subfolder) {
   const folderId = PropertiesService.getScriptProperties().getProperty(propKey);
   if (!folderId) throw new Error('uploadVideo: ' + propKey + ' not set');
 
-  let raw = base64;
-  let mimeType = 'video/mp4';
-  const m = base64.match(/^data:([^;]+);base64,(.+)$/);
-  if (m) {
-    mimeType = m[1];
-    raw = m[2];
-  }
+  const parsed = _parseDataUrl_(base64, 'video/mp4');
+  const raw = parsed.raw;
+  const mimeType = parsed.mimeType;
 
   let bytes;
   try {
@@ -121,6 +110,29 @@ function uploadVideo(base64, filename, subfolder) {
   }
 
   return file.getUrl();
+}
+
+/**
+ * parse data URL → { raw, mimeType }
+ * รองรับ:
+ *   data:image/jpeg;base64,xxx
+ *   data:video/webm;codecs=vp8;base64,xxx
+ *   data:video/mp4;codecs=h264,base64,xxx   (เบราเซอร์บางตัว)
+ * ถ้าไม่ใช่ data URL → คืน base64 ดิบ + defaultMime
+ */
+function _parseDataUrl_(s, defaultMime) {
+  if (typeof s !== 'string') return { raw: '', mimeType: defaultMime || 'application/octet-stream' };
+  const idx = s.indexOf(';base64,');
+  if (idx < 0 || !s.startsWith('data:')) {
+    // ไม่มี prefix — base64 ดิบ
+    return { raw: s, mimeType: defaultMime || 'application/octet-stream' };
+  }
+  const header = s.substring(5, idx); // ตัด "data:" และทุกอย่างก่อน ";base64,"
+  // mime อยู่ก่อน ';' ตัวแรก
+  const semi = header.indexOf(';');
+  const mimeType = semi >= 0 ? header.substring(0, semi) : header;
+  const raw = s.substring(idx + 8);
+  return { raw: raw, mimeType: mimeType || (defaultMime || 'application/octet-stream') };
 }
 
 /**

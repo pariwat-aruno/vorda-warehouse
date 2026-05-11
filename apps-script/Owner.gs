@@ -536,6 +536,253 @@ function handleSetSetting(payload) {
   }
 }
 
+// =====================================================================
+// HISTORY / AUDIT — list approved records with filters
+// =====================================================================
+
+/**
+ * รวมประวัติ approve ทั้งหมด (movement / return / cancel) — filter ได้ตามวัน/ประเภท
+ *
+ * payload: {
+ *   lineUserId,
+ *   type?: 'all'|'movement'|'return'|'cancel',   default 'all'
+ *   from?: 'yyyy-MM-dd',  to?: 'yyyy-MM-dd',     local Asia/Bangkok dates
+ *   limit?: number (default 100, max 300)
+ * }
+ *
+ * return: { ok, items: [{ kind, id, ... full record, when }], count }
+ */
+function handleGetHistory(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
+  if (!isOwner(lineUserId) && !isSupervisor(lineUserId)) {
+    return { ok: false, error: 'not_authorized' };
+  }
+
+  const type = String(payload.type || 'all').toLowerCase();
+  const from = payload.from ? String(payload.from) : '';
+  const to = payload.to ? String(payload.to) : '';
+  const limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 300);
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    let items = [];
+
+    function inRange(when) {
+      if (!when) return false;
+      const d = _datePartBangkok_(when);
+      if (!d) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    }
+
+    if (type === 'all' || type === 'movement') {
+      _readSheetAll_(ss, 'Movements').forEach(r => {
+        if (String(r.status || '') !== 'confirmed') return;
+        const when = r.confirmed_at || r.created_at;
+        if (!inRange(when)) return;
+        items.push(Object.assign({ kind: 'movement', when: when }, r));
+      });
+    }
+    if (type === 'all' || type === 'return') {
+      _readSheetAll_(ss, 'Returns').forEach(r => {
+        const st = String(r.status || '');
+        if (['accepted', 'rejected', 'forwarded_to_claim'].indexOf(st) < 0) return;
+        const when = r.owner_at || r.staff_at;
+        if (!inRange(when)) return;
+        items.push(Object.assign({ kind: 'return', when: when }, r));
+      });
+    }
+    if (type === 'all' || type === 'cancel') {
+      _readSheetAll_(ss, 'Cancellations').forEach(r => {
+        const st = String(r.status || '');
+        if (['accepted', 'rejected'].indexOf(st) < 0) return;
+        const when = r.owner_at || r.staff_at;
+        if (!inRange(when)) return;
+        items.push(Object.assign({ kind: 'cancel', when: when }, r));
+      });
+    }
+
+    // sort by when desc, take limit
+    items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
+    items = items.slice(0, limit);
+
+    return { ok: true, items: items, count: items.length };
+  } catch (err) {
+    logError('handleGetHistory', err.message);
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/** อ่านทุก row ของ sheet เป็น array of objects (Date → ISO string) — helper */
+function _readSheetAll_(ss, sheetName) {
+  const sh = ss.getSheetByName(sheetName);
+  if (!sh) return [];
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const data = sh.getRange(2, 1, last - 1, headers.length).getValues();
+  const out = [];
+  for (let i = 0; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    const r = {};
+    headers.forEach(function (h, j) {
+      const v = data[i][j];
+      r[h] = (v instanceof Date) ? _serializeDate_(v) : v;
+    });
+    out.push(r);
+  }
+  return out;
+}
+
+// =====================================================================
+// PRODUCT MANAGEMENT — owner add/edit/toggle products
+// =====================================================================
+
+/** list ทุก product (รวม inactive) สำหรับ owner LIFF */
+function handleListProducts(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    const productsSh = ss.getSheetByName('Products');
+    const stockSh = ss.getSheetByName('Stock');
+
+    const stockMap = {};
+    const stockLast = stockSh.getLastRow();
+    if (stockLast >= 2) {
+      const sH = stockSh.getRange(1, 1, 1, stockSh.getLastColumn()).getValues()[0];
+      const sD = stockSh.getRange(2, 1, stockLast - 1, sH.length).getValues();
+      const pid = sH.indexOf('product_id');
+      const qty = sH.indexOf('qty_on_hand');
+      sD.forEach(function (r) { if (r[pid]) stockMap[r[pid]] = Number(r[qty] || 0); });
+    }
+
+    const last = productsSh.getLastRow();
+    if (last < 2) return { ok: true, products: [] };
+    const headers = productsSh.getRange(1, 1, 1, productsSh.getLastColumn()).getValues()[0];
+    const data = productsSh.getRange(2, 1, last - 1, headers.length).getValues();
+    const out = [];
+    for (let i = 0; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      const r = {};
+      headers.forEach(function (h, j) {
+        const v = data[i][j];
+        r[h] = (v instanceof Date) ? _serializeDate_(v) : v;
+      });
+      r.qty_on_hand = stockMap[r.product_id] != null ? stockMap[r.product_id] : 0;
+      r.is_active = r.is_active === true || String(r.is_active).toLowerCase() === 'true';
+      out.push(r);
+    }
+    return { ok: true, products: out };
+  } catch (err) {
+    logError('handleListProducts', err.message);
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/** เพิ่มสินค้าใหม่ — auto-gen SKU-NN; payload: { lineUserId, name, unit? } */
+function handleAddProduct(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const name = String(payload.name || '').trim();
+  const unit = String(payload.unit || 'ชิ้น').trim();
+
+  if (!lineUserId || !name) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'name'] };
+  }
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+  if (name.length < 2 || name.length > 80) {
+    return { ok: false, error: 'name_invalid', message: 'ชื่อสินค้าต้องยาว 2-80 ตัวอักษร' };
+  }
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    const productsSh = ss.getSheetByName('Products');
+    const stockSh = ss.getSheetByName('Stock');
+
+    const last = productsSh.getLastRow();
+    let maxNum = 0;
+    if (last >= 2) {
+      productsSh.getRange(2, 1, last - 1, 1).getValues().forEach(function (r) {
+        const id = String(r[0] || '');
+        const m = id.match(/^SKU-(\d+)$/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+    }
+    const newId = 'SKU-' + padLeft_(maxNum + 1, 2);
+    const now = nowBangkok();
+
+    productsSh.appendRow([newId, name, unit, 0, now, true]);
+    stockSh.appendRow([newId, name, 0, '', '', now]);
+
+    logInfo('handleAddProduct', 'added', { productId: newId, name: name, unit: unit });
+    return { ok: true, product_id: newId, name: name, unit: unit };
+  } catch (err) {
+    logError('handleAddProduct', err.message);
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/** แก้ไขสินค้า — payload: { lineUserId, productId, name?, unit?, isActive? } */
+function handleUpdateProduct(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const productId = String(payload.productId || '').trim();
+  if (!lineUserId || !productId) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'productId'] };
+  }
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+
+  const name = payload.name != null ? String(payload.name).trim() : null;
+  const unit = payload.unit != null ? String(payload.unit).trim() : null;
+  const isActive = payload.isActive != null ? !!payload.isActive : null;
+
+  if (name !== null && (name.length < 2 || name.length > 80)) {
+    return { ok: false, error: 'name_invalid' };
+  }
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    const productsSh = ss.getSheetByName('Products');
+    const stockSh = ss.getSheetByName('Stock');
+
+    const rowIdx = findRowByIdCol_(productsSh, 'product_id', productId);
+    if (rowIdx < 0) return { ok: false, error: 'product_not_found', productId: productId };
+
+    const headers = productsSh.getRange(1, 1, 1, productsSh.getLastColumn()).getValues()[0];
+    if (name !== null) productsSh.getRange(rowIdx, headers.indexOf('product_name') + 1).setValue(name);
+    if (unit !== null) productsSh.getRange(rowIdx, headers.indexOf('unit') + 1).setValue(unit);
+    if (isActive !== null) productsSh.getRange(rowIdx, headers.indexOf('is_active') + 1).setValue(isActive);
+
+    if (name !== null) {
+      const stockRowIdx = findRowByIdCol_(stockSh, 'product_id', productId);
+      if (stockRowIdx > 0) {
+        const sH = stockSh.getRange(1, 1, 1, stockSh.getLastColumn()).getValues()[0];
+        stockSh.getRange(stockRowIdx, sH.indexOf('product_name') + 1).setValue(name);
+      }
+    }
+
+    logInfo('handleUpdateProduct', 'updated', { productId: productId, name: name, unit: unit, isActive: isActive });
+    return { ok: true, productId: productId };
+  } catch (err) {
+    logError('handleUpdateProduct', err.message, { productId: productId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
 /** update Staff.role โดย LINE userId (ถ้ามี row นั้น) */
 function _setStaffRole_(targetId, role) {
   const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');

@@ -116,6 +116,14 @@ function _handleLiffAction_(body) {
         result = handleApproveMovement(payload); break;
       case 'setSetting':
         result = handleSetSetting(payload); break;
+      case 'listProducts':
+        result = handleListProducts(payload); break;
+      case 'addProduct':
+        result = handleAddProduct(payload); break;
+      case 'updateProduct':
+        result = handleUpdateProduct(payload); break;
+      case 'getHistory':
+        result = handleGetHistory(payload); break;
 
       // OWNER report
       case 'getDailyReport':
