@@ -249,7 +249,10 @@
     });
 
     // start preview camera
-    try {
+    // กล้อง VDO จะเปิดตอนกด "เริ่มอัด" เท่านั้น (กัน lock camera ตอน scan barcode)
+
+    async function startVdoCamera() {
+      if (stream) return; // มีอยู่แล้ว
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
@@ -258,8 +261,6 @@
       ui.vdoPrev.muted = true;
       ui.vdoPrev.setAttribute('playsinline', '');
       await ui.vdoPrev.play();
-    } catch (err) {
-      showError(ui.err, 'เปิดกล้องไม่ได้: ' + err.message);
     }
 
     function pickMimeType() {
@@ -274,10 +275,14 @@
       return '';
     }
 
-    ui.recStart.addEventListener('click', function () {
-      if (!stream) return showError(ui.err, 'กล้องยังไม่พร้อม');
+    ui.recStart.addEventListener('click', async function () {
       if (recorder && recorder.state === 'recording') return;
       clearError(ui.err);
+      // เปิดกล้องตอนนี้ (lazy)
+      if (!stream) {
+        try { await startVdoCamera(); }
+        catch (err) { return showError(ui.err, 'เปิดกล้องไม่ได้: ' + err.message); }
+      }
       chunks = [];
       videoMime = pickMimeType();
       try {
