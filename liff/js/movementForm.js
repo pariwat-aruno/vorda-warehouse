@@ -107,6 +107,24 @@ export async function initMovementForm(opts) {
     state.profile.displayName = state.myStatus.name;
   }
 
+  // single-staff mode → ซ่อน round toggle (ไม่มีรอบ 2)
+  const singleMode = !!(state.myStatus && state.myStatus.settings && state.myStatus.settings.single_staff_mode);
+  if (singleMode) {
+    // ซ่อน toggle + section รอบ 2
+    const toggle = ui.roundR1 && ui.roundR1.parentNode;
+    if (toggle && toggle.classList && toggle.classList.contains('round-toggle')) {
+      toggle.style.display = 'none';
+    }
+    if (ui.r2Sec) ui.r2Sec.style.display = 'none';
+    // เปลี่ยนข้อความ warning ใน r1 section
+    if (ui.r1Sec) {
+      ui.r1Sec.innerHTML =
+        '<div class="warning-block">' +
+        '<strong>โหมด staff คนเดียว:</strong> นับเอง บันทึก → เจ้าของ approve' +
+        '</div>';
+    }
+  }
+
   // ===== products =====
   try {
     const res = await api.post('getProducts', { lineUserId: state.lineUserId });
@@ -235,6 +253,9 @@ export async function initMovementForm(opts) {
       if (status === 'pending_partner') {
         banner.className = 'success-banner';
         banner.textContent = 'บันทึกรอบ 1 สำเร็จ — ส่งเลขนี้ให้คนนับ 2 กรอกตามที่ "รอบ 2"';
+      } else if (status === 'pending_owner') {
+        banner.className = 'warning-block';
+        banner.textContent = '⚠️ บันทึกแล้ว — รอเจ้าของ approve (จะแจ้งใน LINE)';
       } else if (status === 'confirmed') {
         banner.className = 'success-banner';
         banner.textContent = 'รอบ 2 ตรงกัน — confirmed' + (res.qty_after != null ? ' (ยอดคงเหลือ ' + res.qty_after + ')' : '');
@@ -254,9 +275,15 @@ export async function initMovementForm(opts) {
       }
     }
 
-    // copy id
+    // copy id — แสดงเฉพาะ pending_partner (ต้องส่งให้คนนับ 2)
     if (ui.copyIdBtn) {
       ui.copyIdBtn.style.display = status === 'pending_partner' ? 'block' : 'none';
+      // ใน pending_owner ก็ซ่อน mov-id-box ทั้งกล่อง (ไม่ต้องส่งให้ใคร)
+      const movIdBox = document.querySelector('.mov-id-box');
+      if (movIdBox && status === 'pending_owner') {
+        // แสดงเลข id เล็กๆ ให้รู้ที่จะตามต่อได้
+        movIdBox.style.display = 'block';
+      }
       ui.copyIdBtn.onclick = async function () {
         try {
           await navigator.clipboard.writeText(idVal);

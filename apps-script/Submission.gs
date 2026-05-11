@@ -343,6 +343,8 @@ function handleGetMyStatus(payload) {
     const isOwn = isOwner(lineUserId);
     const isSup = isSupervisor(lineUserId);
     const hasName = !!(staff && staff.name && staff.name !== 'unknown');
+    let cfg = {};
+    try { cfg = getConfig(); } catch (e) {}
 
     return {
       ok: true,
@@ -353,6 +355,9 @@ function handleGetMyStatus(payload) {
       requested_role: (staff && staff.requested_role) || '',
       is_owner: isOwn,
       is_supervisor: isSup,
+      settings: {
+        single_staff_mode: !!cfg.SINGLE_STAFF_MODE,
+      },
     };
   } catch (err) {
     logError('handleGetMyStatus', err.message);
