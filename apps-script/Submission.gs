@@ -234,6 +234,24 @@ function applyStockDelta_(productId, deltaQty, movementId) {
   }
 }
 
+/** อ่าน qty_on_hand ของ product จาก Stock — return 0 ถ้าไม่เจอ */
+function readStockQty_(productId) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Stock');
+  const last = sh.getLastRow();
+  if (last < 2) return 0;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const pidIdx = headers.indexOf('product_id');
+  const qtyIdx = headers.indexOf('qty_on_hand');
+  const data = sh.getRange(2, 1, last - 1, headers.length).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][pidIdx]) === String(productId)) {
+      return Number(data[i][qtyIdx] || 0);
+    }
+  }
+  return 0;
+}
+
 /** ดึง product_name จาก Products sheet (active only) — return null ถ้าไม่เจอหรือ inactive */
 function lookupProductName_(productId) {
   const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');

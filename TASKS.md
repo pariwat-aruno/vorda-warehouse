@@ -141,9 +141,10 @@
 - **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-10: Outbound.gs::handleSubmitOutbound
-- [ ] เหมือน Inbound แต่ apply Stock เป็น `qty_on_hand -= qty`
-- [ ] ตรวจ qty_on_hand ก่อน apply ถ้าไม่พอ → ปฏิเสธ + push LINE manager
-- **Acceptance:** Stock ลดลงถูกต้อง + ปฏิเสธเคสไม่พอ
+- [x] เหมือน Inbound แต่ apply Stock เป็น `qty_on_hand -= qty` + qty บันทึกเป็นลบใน Movements
+- [x] ตรวจ qty_on_hand ก่อน apply: ถ้าไม่พอ → status='pending_supervisor' + push managers (insufficient_stock) + return error
+- [x] เพิ่ม `readStockQty_(productId)` ใน Submission.gs
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-11: Adjust.gs::handleSubmitAdjust
 - [ ] เหมือน Inbound/Outbound แต่:
