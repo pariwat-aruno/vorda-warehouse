@@ -246,8 +246,13 @@
 - **Note:** ยังไม่ retrofit handlers (Inbound/Outbound/Adjust/Count/Return/Cancel ยังใช้ text) — จะ retrofit ตอน TASK-22 / TASK-30
 
 ### TASK-21: Report.gs::handleGetDailyReport + handleGetWeeklyReport
-- [ ] daily: รวบ Movements ของวันนี้ (group by movement_type) + summary by_product
-- [ ] weekly: เพิ่ม Counts ของสัปดาห์ + Returns + Cancellations ที่ closed
+- [x] daily: รวบ Movements confirmed ของวันนี้ — by_type (inbound/outbound/adjust/return_in/cancel_in)
+  + by_product (sort by |delta|) + pending counts (returns/cancels/count_variance)
+- [x] weekly: + Counts สรุป group by status (total/no_action/resolved_by_adjust/awaiting_owner/...)
+  + Returns + Cancellations + Claims (group by status/stage/closed_result)
+- [x] helpers: `_datePartBangkok_`, `_weekPartBangkok_` (ISO week)
+- [x] auth: owner หรือ supervisor เรียกได้ทั้งคู่
+- **Acceptance:** ⏳ test ผ่าน LIFF ตอน TASK-30 / verify ผ่าน LINE owner command
 
 ### TASK-22: Report.gs::sendDailyReport + sendWeeklyReport (scheduled)
 - [ ] sendDailyReport: เรียก handleGetDailyReport + buildDailyReportCard + pushToAllManagers
