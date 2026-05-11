@@ -223,14 +223,16 @@
 - **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-19: Owner.gs::handleOwnerDashboard
-- [ ] เช็ค isOwner
-- [ ] return:
-  - `stock` = Sheet Stock (ทุก row)
+- [x] เช็ค isOwner (return not_owner — frontend จัดการ)
+- [x] return:
+  - `stock` = Sheet Stock (active products + unit จาก Products) เฉพาะ active
   - `pending_returns` = Returns where status='pending_owner'
   - `pending_cancels` = Cancellations where status='pending_owner'
   - `pending_count_variance` = Counts where status='awaiting_owner'
   - `open_claims` = Claims where stage ≠ 'closed'
-- **Acceptance:** dashboard LIFF render ครบ 5 section
+  - `generated_at` timestamp
+- [x] serialize Date → ISO string สำหรับ JSON
+- **Acceptance:** ⏳ test ผ่าน LIFF ตอน TASK-30
 
 ### TASK-20: FlexCard.gs — สร้าง flex card 6 ตัว
 - [ ] `buildVarianceAlertCard(count)` — count variance ≠ 0
