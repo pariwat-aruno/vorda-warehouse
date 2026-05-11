@@ -147,9 +147,13 @@
 - **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-11: Adjust.gs::handleSubmitAdjust
-- [ ] เหมือน Inbound/Outbound แต่:
-  - field `reason` บังคับ
+- [x] เหมือน Inbound/Outbound แต่:
+  - field `reason` บังคับ (เก็บลง Movements.reason)
   - apply Stock เป็น delta ติดลบ (ตัดออก)
+  - pre-check stock พอตัดไหม — ถ้าไม่พอ → pending_supervisor
+- [x] qty ใน Movements บันทึกเป็นลบ
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
+- **owner-initiated `handleAdjustStock`** → จะทำใน TASK-14
 
 ### TASK-12: Count.gs::handleSubmitCount
 - [ ] **ต่างจาก Movement:** ไม่ apply Stock อัตโนมัติ
