@@ -112,6 +112,10 @@ function _handleLiffAction_(body) {
         result = handleRemoveManager(payload); break;
       case 'setStaffName':
         result = handleSetStaffName(payload); break;
+      case 'approveMovement':
+        result = handleApproveMovement(payload); break;
+      case 'setSetting':
+        result = handleSetSetting(payload); break;
 
       // OWNER report
       case 'getDailyReport':

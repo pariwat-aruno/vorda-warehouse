@@ -65,6 +65,21 @@ function _handleOutboundRound1_(lineUserId, name, productId, qty, photos) {
   const productName = lookupProductName_(productId);
   if (!productName) return { ok: false, error: 'product_not_found', productId: productId };
 
+  const cfg = (function () { try { return getConfig(); } catch (e) { return {}; } })();
+  const singleMode = !!cfg.SINGLE_STAFF_MODE;
+
+  // ใน single mode — เช็ค stock พอไหม ตั้งแต่ตอน staff กรอก
+  if (singleMode) {
+    const stockNow = readStockQty_(productId);
+    if (stockNow < qty) {
+      return {
+        ok: false, error: 'insufficient_stock',
+        qty_on_hand: stockNow, requested: qty,
+        message: 'หยิบออกไม่ได้ — สต๊อกมี ' + stockNow + ' ชิ้น แต่จะหยิบ ' + qty,
+      };
+    }
+  }
+
   const movementId = nextMovementId();
   const photoUrls = uploadImages(photos, movementId + '-r1', 'outbound');
 
@@ -83,12 +98,33 @@ function _handleOutboundRound1_(lineUserId, name, productId, qty, photos) {
   setCol_(row, headers, 'submitter1_qty', qty);
   setCol_(row, headers, 'submitter1_at', now);
   setCol_(row, headers, 'photo_urls', photoUrls.join(','));
-  setCol_(row, headers, 'status', 'pending_partner');
+  setCol_(row, headers, 'status', singleMode ? 'pending_owner' : 'pending_partner');
   setCol_(row, headers, 'created_at', now);
 
   movSh.appendRow(row);
 
-  logInfo('handleSubmitOutbound', 'round1', { movementId: movementId, productId: productId, qty: qty });
+  logInfo('handleSubmitOutbound', singleMode ? 'single_mode pending_owner' : 'round1', {
+    movementId: movementId, productId: productId, qty: qty,
+  });
+
+  if (singleMode) {
+    safePushToAllOwners_([{
+      type: 'text',
+      text:
+        '⚠️ หยิบออก รอ approve\n' +
+        'รหัส: ' + movementId + '\n' +
+        'สินค้า: ' + productName + '\n' +
+        'จำนวน: ' + qty + ' ชิ้น\n' +
+        'พนักงาน: ' + name + '\n' +
+        'กด approve ใน LIFF เจ้าของ',
+    }], 'handleSubmitOutbound');
+    return {
+      ok: true,
+      movementId: movementId,
+      status: 'pending_owner',
+      message: 'บันทึกแล้ว — รอเจ้าของ approve',
+    };
+  }
 
   return {
     ok: true,

@@ -64,6 +64,20 @@ function _handleAdjustRound1_(lineUserId, name, productId, qty, reason, photos) 
   const productName = lookupProductName_(productId);
   if (!productName) return { ok: false, error: 'product_not_found', productId: productId };
 
+  const cfg = (function () { try { return getConfig(); } catch (e) { return {}; } })();
+  const singleMode = !!cfg.SINGLE_STAFF_MODE;
+
+  if (singleMode) {
+    const stockNow = readStockQty_(productId);
+    if (stockNow < qty) {
+      return {
+        ok: false, error: 'insufficient_stock',
+        qty_on_hand: stockNow, requested: qty,
+        message: 'ตัดสต๊อกไม่ได้ — สต๊อกมี ' + stockNow + ' ชิ้น',
+      };
+    }
+  }
+
   const movementId = nextMovementId();
   const photoUrls = uploadImages(photos, movementId + '-r1', 'adjust');
 
@@ -83,14 +97,34 @@ function _handleAdjustRound1_(lineUserId, name, productId, qty, reason, photos) 
   setCol_(row, headers, 'submitter1_qty', qty);
   setCol_(row, headers, 'submitter1_at', now);
   setCol_(row, headers, 'photo_urls', photoUrls.join(','));
-  setCol_(row, headers, 'status', 'pending_partner');
+  setCol_(row, headers, 'status', singleMode ? 'pending_owner' : 'pending_partner');
   setCol_(row, headers, 'created_at', now);
 
   movSh.appendRow(row);
 
-  logInfo('handleSubmitAdjust', 'round1', {
+  logInfo('handleSubmitAdjust', singleMode ? 'single_mode pending_owner' : 'round1', {
     movementId: movementId, productId: productId, qty: qty, reason: reason,
   });
+
+  if (singleMode) {
+    safePushToAllOwners_([{
+      type: 'text',
+      text:
+        '⚠️ ตัดสต๊อก รอ approve\n' +
+        'รหัส: ' + movementId + '\n' +
+        'สินค้า: ' + productName + '\n' +
+        'จำนวน: ' + qty + ' ชิ้น\n' +
+        'เหตุผล: ' + reason + '\n' +
+        'พนักงาน: ' + name + '\n' +
+        'กด approve ใน LIFF เจ้าของ',
+    }], 'handleSubmitAdjust');
+    return {
+      ok: true,
+      movementId: movementId,
+      status: 'pending_owner',
+      message: 'บันทึกแล้ว — รอเจ้าของ approve',
+    };
+  }
 
   return {
     ok: true,

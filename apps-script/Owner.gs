@@ -32,13 +32,18 @@ function handleOwnerDashboard(payload) {
     const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
     const ss = SpreadsheetApp.openById(sheetId);
 
+    const cfg = (function () { try { return getConfig(); } catch (e) { return {}; } })();
     return {
       ok: true,
       stock: _readStock_(ss),
+      pending_movements: _readSheetFiltered_(ss, 'Movements', 'status', 'pending_owner'),
       pending_returns: _readSheetFiltered_(ss, 'Returns', 'status', 'pending_owner'),
       pending_cancels: _readSheetFiltered_(ss, 'Cancellations', 'status', 'pending_owner'),
       pending_count_variance: _readSheetFiltered_(ss, 'Counts', 'status', 'awaiting_owner'),
       open_claims: _readSheetFilteredNotEqual_(ss, 'Claims', 'stage', 'closed'),
+      settings: {
+        single_staff_mode: !!cfg.SINGLE_STAFF_MODE,
+      },
       generated_at: nowBangkok(),
     };
   } catch (err) {
@@ -344,6 +349,189 @@ function handleSetStaffName(payload) {
     return { ok: true, targetLineUserId: targetId, name: name };
   } catch (err) {
     logError('handleSetStaffName', err.message, { targetId: targetId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/**
+ * owner approve Movement ที่ pending_owner (single-staff mode)
+ *
+ * payload: { lineUserId, movementId, decision: 'accept'|'reject' }
+ *
+ * accept → apply Stock ตาม movement_type → status='confirmed'
+ * reject → status='rejected' ไม่กระทบ Stock
+ */
+function handleApproveMovement(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const movementId = payload.movementId;
+  const decision = String(payload.decision || '').toLowerCase();
+
+  if (!lineUserId || !movementId || !decision) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'movementId', 'decision'] };
+  }
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+  if (decision !== 'accept' && decision !== 'reject') {
+    return { ok: false, error: 'decision_invalid', valid: ['accept', 'reject'] };
+  }
+
+  const dedupKey = 'approveMovement:' + lineUserId + ':' + movementId;
+  if (!dedupRecentSubmission_(dedupKey, 5)) {
+    return { ok: false, error: 'duplicate_request' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Movements');
+    const rowIdx = findRowByIdCol_(sh, 'movement_id', movementId);
+    if (rowIdx < 0) return { ok: false, error: 'not_found', movementId: movementId };
+
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const row = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
+
+    const status = String(row[headers.indexOf('status')] || '');
+    if (status !== 'pending_owner') {
+      return { ok: false, error: 'not_pending_owner', currentStatus: status };
+    }
+
+    const movementType = String(row[headers.indexOf('movement_type')] || '');
+    const productId = String(row[headers.indexOf('product_id')] || '');
+    const productName = String(row[headers.indexOf('product_name')] || productId);
+    const qtyValue = Number(row[headers.indexOf('submitter1_qty')] || 0);
+    const reason = String(row[headers.indexOf('reason')] || '');
+    const ownerName = (function () {
+      const s = findStaffByLineUserId(lineUserId);
+      return (s && s.name) || 'owner';
+    })();
+    const now = nowBangkok();
+
+    if (decision === 'reject') {
+      sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('rejected');
+      // ใช้ supervisor_user_id field ก็ได้ แต่ตรงกว่าใช้ cancel field
+      sh.getRange(rowIdx, headers.indexOf('cancel_at') + 1).setValue(now);
+      sh.getRange(rowIdx, headers.indexOf('cancel_reason') + 1).setValue('owner rejected');
+      logInfo('handleApproveMovement', 'rejected', { movementId: movementId, type: movementType });
+      const typeLabel = _movementTypeLabel_(movementType);
+      safePushToAllManagers_([{
+        type: 'text',
+        text: typeLabel + ' rejected\n' +
+              'รหัส: ' + movementId + '\n' +
+              'สินค้า: ' + productName + '\n' +
+              'จำนวน: ' + qtyValue + ' (ไม่กระทบ Stock)\n' +
+              'โดย: ' + ownerName,
+      }], 'handleApproveMovement');
+      return { ok: true, movementId: movementId, decision: 'reject', status: 'rejected' };
+    }
+
+    // accept → กำหนด delta จาก type
+    let delta;
+    let typeLabel;
+    if (movementType === 'inbound') { delta = +qtyValue; typeLabel = 'รับเข้า'; }
+    else if (movementType === 'outbound') { delta = -qtyValue; typeLabel = 'หยิบออก'; }
+    else if (movementType === 'adjust') { delta = -qtyValue; typeLabel = 'ตัดสต๊อก'; }
+    else return { ok: false, error: 'unknown_movement_type', movementType: movementType };
+
+    if (delta < 0) {
+      const stockNow = readStockQty_(productId);
+      if (stockNow + delta < 0) {
+        return {
+          ok: false, error: 'insufficient_stock',
+          qty_on_hand: stockNow, requested: qtyValue,
+        };
+      }
+    }
+
+    const stock = applyStockDelta_(productId, delta, movementId);
+
+    sh.getRange(rowIdx, headers.indexOf('qty') + 1).setValue(delta);
+    sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('confirmed');
+    sh.getRange(rowIdx, headers.indexOf('confirmed_at') + 1).setValue(now);
+    // บันทึก owner ใน supervisor_* fields (re-use schema)
+    sh.getRange(rowIdx, headers.indexOf('supervisor_user_id') + 1).setValue(lineUserId);
+    sh.getRange(rowIdx, headers.indexOf('supervisor_name') + 1).setValue(ownerName);
+    sh.getRange(rowIdx, headers.indexOf('supervisor_at') + 1).setValue(now);
+
+    logInfo('handleApproveMovement', 'accepted', {
+      movementId: movementId, type: movementType, qty: qtyValue,
+      stock_before: stock.qty_before, stock_after: stock.qty_after,
+    });
+
+    safePushToAllManagers_([{
+      type: 'text',
+      text: typeLabel + ' confirmed (owner approved)\n' +
+            'รหัส: ' + movementId + '\n' +
+            'สินค้า: ' + productName + '\n' +
+            'จำนวน: ' + (delta > 0 ? '+' : '') + delta + ' ชิ้น\n' +
+            (reason ? 'เหตุผล: ' + reason + '\n' : '') +
+            'ยอดคงเหลือ: ' + stock.qty_after,
+    }], 'handleApproveMovement');
+
+    return {
+      ok: true, movementId: movementId, decision: 'accept',
+      status: 'confirmed', qty_applied: delta,
+      qty_before: stock.qty_before, qty_after: stock.qty_after,
+    };
+  } catch (err) {
+    logError('handleApproveMovement', err.message, { movementId: movementId });
+    return { ok: false, error: 'server_error', message: err.message };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+function _movementTypeLabel_(t) {
+  return t === 'inbound' ? 'รับเข้า'
+       : t === 'outbound' ? 'หยิบออก'
+       : t === 'adjust' ? 'ตัดสต๊อก'
+       : t;
+}
+
+/**
+ * อ่าน/เขียน setting ใน Sheet Config — owner ใช้ toggle single_staff_mode etc.
+ *
+ * payload: { lineUserId, key, value? }
+ *   - ถ้าไม่มี value → return ค่าปัจจุบัน
+ *   - ถ้ามี value → update + clear cache
+ */
+function handleSetSetting(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const key = String(payload.key || '').trim();
+  if (!lineUserId || !key) return { ok: false, error: 'missing_params', need: ['lineUserId', 'key'] };
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+
+  // whitelist เฉพาะ key ที่อนุญาตให้ toggle
+  const ALLOWED = ['single_staff_mode'];
+  if (ALLOWED.indexOf(key) < 0) return { ok: false, error: 'key_not_allowed', allowed: ALLOWED };
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Config');
+    const last = sh.getLastRow();
+    if (last < 2) throw new Error('Config sheet empty');
+    const data = sh.getRange(2, 1, last - 1, 2).getValues();
+    let rowIdx = -1;
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][0]) === key) { rowIdx = i + 2; break; }
+    }
+    if (rowIdx < 0) {
+      sh.appendRow([key, '', 'set via owner LIFF']);
+      rowIdx = sh.getLastRow();
+    }
+
+    if (payload.value !== undefined) {
+      const newVal = payload.value === true || String(payload.value).toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
+      sh.getRange(rowIdx, 2).setValue(newVal);
+      clearConfigCache();
+      logInfo('handleSetSetting', 'updated', { key: key, value: newVal });
+      return { ok: true, key: key, value: newVal, updated: true };
+    }
+
+    return { ok: true, key: key, value: sh.getRange(rowIdx, 2).getValue() };
+  } catch (err) {
+    logError('handleSetSetting', err.message, { key: key });
     return { ok: false, error: 'server_error', message: err.message };
   }
 }

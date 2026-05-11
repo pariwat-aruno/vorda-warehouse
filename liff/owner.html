@@ -25,6 +25,18 @@
     <div id="loading" class="muted" style="text-align:center; padding: 20px">กำลังโหลด dashboard...</div>
 
     <div id="dashboard" style="display:none">
+      <!-- Section 0: Settings -->
+      <div class="dash-section">
+        <h2>โหมดระบบ</h2>
+        <div class="checkbox-row">
+          <input id="ssm-toggle" type="checkbox" />
+          <label for="ssm-toggle">Single-staff mode (staff 1 คน + เจ้าของ approve)</label>
+        </div>
+        <div class="muted" style="font-size:12px">
+          เปิด = staff submit ครั้งเดียว → เจ้าของกด approve ใน section ถัดไป (ไม่ต้อง double-blind 2 รอบ)
+        </div>
+      </div>
+
       <!-- Section 1: Stock -->
       <div class="dash-section">
         <h2>ยอดสต๊อก</h2>
@@ -32,6 +44,12 @@
           <thead><tr><th>สินค้า</th><th style="text-align:right">คงเหลือ</th></tr></thead>
           <tbody id="stock-tbody"></tbody>
         </table>
+      </div>
+
+      <!-- Section 1.5: Pending Movements (single-staff mode) -->
+      <div class="dash-section">
+        <h2>Movement รอ approve <span id="movements-count" class="muted"></span></h2>
+        <div id="movements-list"></div>
       </div>
 
       <!-- Section 2: Pending Returns -->
@@ -160,6 +178,24 @@
     }
 
     function renderDashboard(d) {
+      // Settings — single staff mode toggle
+      const ssmCheckbox = document.getElementById('ssm-toggle');
+      ssmCheckbox.checked = !!(d.settings && d.settings.single_staff_mode);
+      ssmCheckbox.onchange = async () => {
+        ssmCheckbox.disabled = true;
+        try {
+          await api.post('setSetting', {
+            lineUserId: state.lineUserId, key: 'single_staff_mode', value: ssmCheckbox.checked,
+          });
+          flash(ui.ok, ssmCheckbox.checked ? 'เปิด single-staff mode แล้ว' : 'ปิด single-staff mode แล้ว');
+        } catch (err) {
+          ssmCheckbox.checked = !ssmCheckbox.checked; // revert
+          showError(ui.err, 'เปลี่ยนไม่ได้: ' + (err.code || err.message));
+        } finally {
+          ssmCheckbox.disabled = false;
+        }
+      };
+
       // Stock
       ui.stockBody.innerHTML = '';
       (d.stock || []).forEach(function (s) {
@@ -168,6 +204,18 @@
           + '<td class="qty">' + s.qty_on_hand + ' ' + esc(s.unit || 'ชิ้น') + '</td>';
         ui.stockBody.appendChild(tr);
       });
+
+      // Pending Movements (single-staff mode)
+      const movList = document.getElementById('movements-list');
+      const movCount = document.getElementById('movements-count');
+      const pendingMov = d.pending_movements || [];
+      movCount.textContent = '(' + pendingMov.length + ')';
+      movList.innerHTML = '';
+      if (pendingMov.length === 0) {
+        movList.innerHTML = '<div class="empty">ไม่มี movement ค้าง</div>';
+      } else {
+        pendingMov.forEach(m => movList.appendChild(makeMovementItem(m)));
+      }
 
       // Returns
       ui.retCount.textContent = '(' + (d.pending_returns || []).length + ')';
@@ -215,6 +263,53 @@
     }
 
     function esc(s) { return String(s || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+
+    function makeMovementItem(m) {
+      const div = document.createElement('div');
+      div.className = 'dash-item';
+      const type = String(m.movement_type || '');
+      const typeLabel = type === 'inbound' ? 'รับเข้า'
+                      : type === 'outbound' ? 'หยิบออก'
+                      : type === 'adjust' ? 'ตัดสต๊อก' : type;
+      const photoUrls = String(m.photo_urls || '').split(',').filter(u => u && u.trim());
+      const thumb = photoUrls.length > 0
+        ? '<img src="' + esc(photoUrls[0].replace(/\/file\/d\/([^\/]+).*$/, 'https://drive.google.com/thumbnail?id=$1&sz=w400')) + '" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle">'
+        : '';
+      div.innerHTML =
+        '<div>' + thumb + '<strong>' + esc(typeLabel) + '</strong> · ' + esc(m.movement_id) + '</div>' +
+        '<div class="meta">' + esc(m.product_name) + ' × ' + (m.submitter1_qty || 0) +
+          (m.reason ? ' · ' + esc(m.reason) : '') + '</div>' +
+        '<div class="meta">โดย ' + esc(m.submitter1_name || '-') + '</div>' +
+        '<div class="actions"></div>';
+      const acts = div.querySelector('.actions');
+      const acc = document.createElement('button');
+      acc.className = 'btn-primary'; acc.textContent = 'Approve';
+      acc.onclick = () => approveMovement(m.movement_id, 'accept', div);
+      const rej = document.createElement('button');
+      rej.className = 'btn-neutral'; rej.textContent = 'Reject';
+      rej.onclick = () => approveMovement(m.movement_id, 'reject', div);
+      acts.appendChild(acc); acts.appendChild(rej);
+      return div;
+    }
+
+    async function approveMovement(movementId, decision, itemEl) {
+      const confirmText = decision === 'accept'
+        ? 'Approve (apply Stock)?' : 'Reject (ไม่กระทบ Stock)?';
+      if (!confirm(movementId + '\n' + confirmText)) return;
+      disableButtons(itemEl);
+      try {
+        const res = await api.post('approveMovement', {
+          lineUserId: state.lineUserId, movementId: movementId, decision: decision,
+        });
+        flash(ui.ok, movementId + ' → ' + res.status +
+          (res.qty_after != null ? ' (Stock ' + res.qty_after + ')' : ''));
+        await loadDashboard();
+      } catch (err) {
+        enableButtons(itemEl);
+        showError(ui.err, movementId + ': ' + (err.code || err.message) +
+          (err.data && err.data.message ? ' — ' + err.data.message : ''));
+      }
+    }
 
     function makeReturnItem(r) {
       const div = document.createElement('div');

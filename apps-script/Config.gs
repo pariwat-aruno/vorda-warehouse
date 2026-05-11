@@ -84,6 +84,11 @@ function getConfig() {
   }
   cfg.SUPERVISOR_LINE_USER_IDS = supervisorIds;
 
+  // single staff mode (TRUE = staff 1 คน + owner approve, FALSE = double-blind 2 รอบ)
+  const ssmRaw = cfg.single_staff_mode;
+  cfg.SINGLE_STAFF_MODE = ssmRaw === true
+    || String(ssmRaw || '').toUpperCase() === 'TRUE';
+
   return cfg;
 }
 

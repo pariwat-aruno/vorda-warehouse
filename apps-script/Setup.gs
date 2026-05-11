@@ -196,6 +196,7 @@ const CONFIG_DEFAULTS = [
   ['report_weekly_time', '18:10', 'เวลาสรุปรายสัปดาห์ (HH:mm) — trigger ส่ง LINE owner'],
   ['cancel_window_seconds', '300', 'ระยะเวลาที่ยกเลิก submission ได้ (วินาที) — default 5 นาที'],
   ['count_min_photos', '4', 'จำนวนรูปขั้นต่ำที่ต้องถ่าย (4 มุมลัง)'],
+  ['single_staff_mode', 'FALSE', 'TRUE = staff 1 คน submit + owner approve (ไม่มี double-blind 2 รอบ) / FALSE = ปกติ'],
 ];
 
 // =====================================================================

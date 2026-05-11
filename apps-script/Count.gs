@@ -74,6 +74,9 @@ function _handleCountRound1_(lineUserId, name, productId, qty, photos) {
   const productName = lookupProductName_(productId);
   if (!productName) return { ok: false, error: 'product_not_found', productId: productId };
 
+  const cfg = (function () { try { return getConfig(); } catch (e) { return {}; } })();
+  const singleMode = !!cfg.SINGLE_STAFF_MODE;
+
   // snapshot system_qty จาก Stock ตอนนี้
   const systemQty = readStockQty_(productId);
 
@@ -95,9 +98,43 @@ function _handleCountRound1_(lineUserId, name, productId, qty, photos) {
   setCol_(row, headers, 'submitter1_qty', qty);
   setCol_(row, headers, 'submitter1_at', now);
   setCol_(row, headers, 'photo_urls', photoUrls.join(','));
-  setCol_(row, headers, 'status', 'pending_partner');
   setCol_(row, headers, 'created_at', now);
 
+  // single mode: final_qty = submitter1_qty + ตัดสินสถานะทันที
+  if (singleMode) {
+    const variance = qty - systemQty;
+    setCol_(row, headers, 'final_qty', qty);
+    setCol_(row, headers, 'variance', variance);
+    setCol_(row, headers, 'status', variance === 0 ? 'no_action' : 'awaiting_owner');
+    sh.appendRow(row);
+
+    logInfo('handleSubmitCount', 'single_mode', {
+      countId: countId, productId: productId, system_qty: systemQty,
+      final_qty: qty, variance: variance,
+    });
+
+    if (variance !== 0) {
+      safePushToAllOwners_([buildVarianceAlertCard({
+        count_id: countId,
+        product_name: productName,
+        system_qty: systemQty,
+        final_qty: qty,
+        variance: variance,
+      })], 'handleSubmitCount');
+    }
+
+    return {
+      ok: true,
+      countId: countId,
+      status: variance === 0 ? 'no_action' : 'awaiting_owner',
+      system_qty: systemQty,
+      final_qty: qty,
+      variance: variance,
+    };
+  }
+
+  // double-blind mode: รอ submitter2
+  setCol_(row, headers, 'status', 'pending_partner');
   sh.appendRow(row);
 
   logInfo('handleSubmitCount', 'round1', {
