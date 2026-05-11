@@ -393,6 +393,18 @@ textarea:focus { outline: none; border-color: var(--cherry); box-shadow: 0 0 0 3
 }
 .modal-card h3 { margin: 0 0 12px; font-size: 16px; color: var(--cherry); }
 
+/* ===== Top header strip (back/myid link) ===== */
+.top-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  max-width: 480px; margin: 0 auto 12px;
+  font-size: 12px;
+}
+.top-bar a {
+  color: var(--cherry); text-decoration: none; font-weight: 600;
+  padding: 6px 10px; border-radius: 6px;
+}
+.top-bar a:active { background: var(--cherry-tint); }
+
 /* ===== Footer brand (ทุก page) ===== */
 .page-footer {
   text-align: center; margin-top: 20px;

@@ -148,17 +148,53 @@ function _handleMessageEvent_(event) {
   const text = (event.message && event.message.text || '').trim();
   const userId = event.source && event.source.userId;
   const replyToken = event.replyToken;
+  if (!text) return;
 
-  // คำสั่ง owner
+  // ===== คำสั่งสำหรับทุกคน — ขอ userId ของตัวเอง =====
+  const lower = text.toLowerCase();
+  if (lower === 'myid' || lower === 'id' || lower === 'ไอดี' || lower === 'ขอid' || lower === 'ขอ id') {
+    const role = isOwner(userId) ? 'owner'
+               : isSupervisor(userId) ? 'supervisor'
+               : 'staff (ยังไม่ลงทะเบียน)';
+    replyText(replyToken,
+      'LINE userId ของคุณ:\n' +
+      userId + '\n\n' +
+      'role: ' + role + '\n\n' +
+      'ส่งให้เจ้าของระบบเพื่อเพิ่มสิทธิ์ owner/supervisor\n' +
+      '(กดค้างที่ ID ด้านบนเพื่อ copy)'
+    );
+    return;
+  }
+
+  // ===== คำสั่ง owner =====
   if (isOwner(userId)) {
-    if (text === 'รายงานวันนี้' || text === 'daily') {
-      const result = handleGetDailyReport({ lineUserId: userId });
-      replyText(replyToken, JSON.stringify(result, null, 2));
+    if (text === 'รายงานวันนี้' || lower === 'daily') {
+      // ส่ง flex card รายวัน
+      try {
+        const data = _buildDailyReportData_(todayBangkok());
+        replyMessage(replyToken, [buildDailyReportCard(data)]);
+      } catch (err) {
+        replyText(replyToken, 'รายงานล้มเหลว: ' + err.message);
+      }
       return;
     }
-    if (text === 'รายงานสัปดาห์' || text === 'weekly') {
-      const result = handleGetWeeklyReport({ lineUserId: userId });
-      replyText(replyToken, JSON.stringify(result, null, 2));
+    if (text === 'รายงานสัปดาห์' || lower === 'weekly') {
+      try {
+        const data = _buildWeeklyReportData_(thisWeekBangkok());
+        replyMessage(replyToken, [buildWeeklyReportCard(data)]);
+      } catch (err) {
+        replyText(replyToken, 'รายงานล้มเหลว: ' + err.message);
+      }
+      return;
+    }
+    if (text === 'help' || text === 'คำสั่ง' || text === 'เมนู') {
+      replyText(replyToken,
+        'คำสั่ง bot:\n' +
+        '• myid — ดู LINE userId ของคุณ\n' +
+        '• รายงานวันนี้ / daily — สรุปรายวัน\n' +
+        '• รายงานสัปดาห์ / weekly — สรุปสัปดาห์\n' +
+        '• help — เมนูนี้'
+      );
       return;
     }
   }
@@ -179,8 +215,10 @@ function _handleFollowEvent_(event) {
   const userId = event.source && event.source.userId;
   const replyToken = event.replyToken;
   replyText(replyToken,
-    'ยินดีต้อนรับสู่ระบบคลัง Vorda\n' +
-    'หากเป็นเจ้าของหรือหัวหน้า กรุณาส่ง LINE userId นี้ให้เจ้าของระบบเพื่อเพิ่มสิทธิ์'
+    'ยินดีต้อนรับสู่ระบบคลัง Vorda\n\n' +
+    'LINE userId ของคุณ:\n' + userId + '\n\n' +
+    'หากเป็นเจ้าของ/หัวหน้าคลัง ส่ง userId นี้ให้เจ้าของระบบเพื่อเพิ่มสิทธิ์\n' +
+    '(พิมพ์ "myid" ดูซ้ำได้ทุกเมื่อ)'
   );
   logInfo('_handleFollowEvent_', 'new follower', { userId: userId });
 }

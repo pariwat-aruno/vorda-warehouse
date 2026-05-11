@@ -322,10 +322,12 @@
 - **URL:** `https://script.google.com/macros/s/AKfycbwLmaNaopejgR2gIKSY3nm1MBHLIcfLw06_KiLx7Tn08MShl8yOZNAIBP4IjYF_BGdw/exec`
 
 ### TASK-32: GitHub Pages
-- [ ] Create public repo `vorda-warehouse` (ถ้ายังไม่มี)
-- [ ] push code → main
-- [ ] Settings → Pages → Source: GitHub Actions (ดู `.github/workflows/pages.yml`)
-- [ ] รอ Action เสร็จ → ได้ URL `https://<gh>.github.io/vorda-warehouse/`
+- [x] Create public repo `vorda-warehouse` (gh repo create)
+- [x] push code → main
+- [x] Settings → Pages → Source: GitHub Actions (`.github/workflows/pages.yml`) — enabled via API
+- [x] Action เสร็จ + verify HTTP 200 ที่ index + myid
+- **Repo:** https://github.com/pariwat-aruno/vorda-warehouse
+- **Pages URL:** https://pariwat-aruno.github.io/vorda-warehouse/
 
 ### TASK-33: ปรับ LIFF Endpoint URL
 - [ ] LINE Developers → Channel → LIFF → แต่ละ app → แก้ Endpoint URL = GitHub Pages URL จริง
