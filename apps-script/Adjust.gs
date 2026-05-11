@@ -1,5 +1,5 @@
 /**
- * Adjust.gs — ตัดสต๊อกของเสีย/แตกหัก
+ * Adjust.gs — เสียหายของเสีย/แตกหัก
  *
  * เหมือน Inbound flow (double-blind 2 คน + รูป 4 มุม) แต่:
  *   - movement_type = 'adjust'
@@ -13,7 +13,7 @@
  */
 
 /**
- * ตัดสต๊อกของเสีย/แตกหัก — staff double-blind
+ * เสียหายของเสีย/แตกหัก — staff double-blind
  *
  * payload: { lineUserId, name, productId, qty, reason, photos[4], pairingMovementId? }
  * qty: จำนวนของเสียที่จะตัด (เก็บเป็นลบใน Movements)
@@ -33,7 +33,7 @@ function handleSubmitAdjust(payload) {
     return { ok: false, error: 'missing_params', need: ['lineUserId', 'productId', 'qty', 'reason', 'photos[≥4]'] };
   }
   if (!reason) {
-    return { ok: false, error: 'reason_required', message: 'ตัดสต๊อกต้องระบุเหตุผล' };
+    return { ok: false, error: 'reason_required', message: 'เสียหายต้องระบุเหตุผล' };
   }
   if (!isFinite(qty) || qty <= 0 || qty !== Math.floor(qty)) {
     return { ok: false, error: 'qty_invalid', message: 'qty ต้องเป็นจำนวนเต็มบวก' };
@@ -73,7 +73,7 @@ function _handleAdjustRound1_(lineUserId, name, productId, qty, reason, photos) 
       return {
         ok: false, error: 'insufficient_stock',
         qty_on_hand: stockNow, requested: qty,
-        message: 'ตัดสต๊อกไม่ได้ — สต๊อกมี ' + stockNow + ' ชิ้น',
+        message: 'เสียหายไม่ได้ — สต๊อกมี ' + stockNow + ' ชิ้น',
       };
     }
   }
@@ -110,7 +110,7 @@ function _handleAdjustRound1_(lineUserId, name, productId, qty, reason, photos) 
     safePushToAllOwners_([{
       type: 'text',
       text:
-        '⚠️ ตัดสต๊อก รอ approve\n' +
+        '⚠️ เสียหาย รอ approve\n' +
         'รหัส: ' + movementId + '\n' +
         'สินค้า: ' + productName + '\n' +
         'จำนวน: ' + qty + ' ชิ้น\n' +
@@ -188,7 +188,7 @@ function _handleAdjustRound2_(lineUserId, name, productId, qty, reason, photos, 
       submitter2_name: name,
       submitter2_qty: qty,
       photo_urls: combined,
-    }, 'movement', 'ตัดสต๊อก')], 'handleSubmitAdjust');
+    }, 'movement', 'เสียหาย')], 'handleSubmitAdjust');
     return {
       ok: true,
       movementId: pairingMovementId,
@@ -209,7 +209,7 @@ function _handleAdjustRound2_(lineUserId, name, productId, qty, reason, photos, 
     safePushToAllManagers_([{
       type: 'text',
       text:
-        '⚠️ ตัดสต๊อกไม่ได้ — ของไม่พอ\n' +
+        '⚠️ เสียหายไม่ได้ — ของไม่พอ\n' +
         'รหัส: ' + pairingMovementId + '\n' +
         'สินค้า: ' + productName + '\n' +
         'จะตัด: ' + qty + ' ชิ้น\n' +
@@ -239,7 +239,7 @@ function _handleAdjustRound2_(lineUserId, name, productId, qty, reason, photos, 
   safePushToAllManagers_([{
     type: 'text',
     text:
-      'ตัดสต๊อก confirmed\n' +
+      'เสียหาย confirmed\n' +
       'รหัส: ' + pairingMovementId + '\n' +
       'สินค้า: ' + productName + '\n' +
       'จำนวน: -' + qty + ' ชิ้น\n' +
@@ -266,7 +266,7 @@ function _handleAdjustRound2_(lineUserId, name, productId, qty, reason, photos, 
  *
  * payload: { lineUserId, countId, deltaQty, reason }
  *   - deltaQty = +n เพิ่ม / -n ลด (โดยปกติ = final_qty - system_qty ของ Counts row)
- *   - reason: เหตุผลที่ปรับ (เช่น "นับเทียบสัปดาห์ที่ 19")
+ *   - reason: เหตุผลที่ปรับ (เช่น "ตรวจนับสัปดาห์ที่ 19")
  *
  * effect:
  *   1. insert Movements row (movement_type='adjust', single-submitter=owner)

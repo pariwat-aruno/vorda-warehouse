@@ -9,7 +9,7 @@
 
 - **ชื่อ:** `vorda-warehouse`
 - **ชื่อไทย:** ระบบคลังสินค้า Vorda (double-blind audit)
-- **Description:** บันทึกทุก movement (เข้า/ออก/ตัด/คืน/ยกเลิก) แบบ double-blind 2 คน + นับเทียบรายสัปดาห์ พร้อม approve flow สำหรับ owner
+- **Description:** บันทึกทุก movement (เข้า/ออก/ตัด/คืน/ยกเลิก) แบบ double-blind 2 คน + ตรวจนับรายสัปดาห์ พร้อม approve flow สำหรับ owner
 - **Type:** Mini app (ไม่ใช่ enterprise)
 - **Stack:** Google Sheet + Apps Script + LINE Messaging API + LIFF + GitHub Pages
 - **บริษัท:** บริษัท วอร์ด้า สกินแคร์ จำกัด (Vorda Skincare)
@@ -25,9 +25,9 @@
 | **ยอดคงเหลือ** | quantity on hand / stock | จำนวนสินค้าในคลังตอนนี้ |
 | **รับเข้า** | inbound / receive | ของจากโรงงานเข้าคลัง |
 | **หยิบออก** | outbound / pick | หยิบของออกไปแพคส่งลูกค้า |
-| **นับเทียบ** | count / audit | นับสต๊อกจริงเทียบกับยอดในระบบ (สัปดาห์ละครั้ง) |
+| **ตรวจนับ** | count / audit | นับสต๊อกจริงเทียบกับยอดในระบบ (สัปดาห์ละครั้ง) |
 | **ส่วนต่าง** | variance / discrepancy | ยอดนับจริง − ยอดในระบบ |
-| **ตัดสต๊อก** | adjust / write-off | ตัดของเสีย/แตก/หาย ออกจากสต๊อก |
+| **เสียหาย** | adjust / write-off | ตัดของเสีย/แตก/หาย ออกจากสต๊อก |
 | **ตีคืน** | return | ลูกค้าส่งของกลับมา (มี VDO + ตรวจสภาพ) |
 | **ยกเลิก** | cancel / RTS | ออเดอร์ยกเลิก ของไม่ถึงปลายทางตีกลับ (ของไม่ได้แกะ) |
 | **เคลม** | claim | ของไม่ใช่ของเรา → ส่งคืน supplier ผ่าน flow 3 ขั้น |
@@ -109,7 +109,7 @@
 | `created_at` | datetime | |
 | `confirmed_at` | datetime | |
 
-### Sheet: `Counts` — นับเทียบสัปดาห์ละครั้ง
+### Sheet: `Counts` — ตรวจนับสัปดาห์ละครั้ง
 | Column | Type | หมายเหตุ |
 |---|---|---|
 | `count_id` | string | `CNT-YYYYMMDD-XXXX` |

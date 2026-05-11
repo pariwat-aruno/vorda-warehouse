@@ -1,5 +1,5 @@
 /**
- * Count.gs — นับเทียบ (สัปดาห์ละครั้ง)
+ * Count.gs — ตรวจนับ (สัปดาห์ละครั้ง)
  *
  * ต่างจาก Inbound/Outbound:
  *   - ไม่ apply ไป Stock โดยอัตโนมัติ (ผลนับ ≠ การเปลี่ยนแปลง)
@@ -21,7 +21,7 @@
  */
 
 /**
- * นับเทียบสัปดาห์ละครั้ง — double-blind
+ * ตรวจนับสัปดาห์ละครั้ง — double-blind
  *
  * ต่างจาก Movement:
  *   - ไม่ apply Stock อัตโนมัติ
@@ -44,7 +44,7 @@ function handleSubmitCount(payload) {
   if (!lineUserId || !productId || qty === '' || qty == null || !Array.isArray(photos) || photos.length < 4) {
     return { ok: false, error: 'missing_params', need: ['lineUserId', 'productId', 'qty', 'photos[≥4]'] };
   }
-  // qty นับเทียบอาจเป็น 0 ได้ (นับแล้วของหมด) แต่ต้องไม่ติดลบ
+  // qty ตรวจนับอาจเป็น 0 ได้ (นับแล้วของหมด) แต่ต้องไม่ติดลบ
   if (!isFinite(qty) || qty < 0 || qty !== Math.floor(qty)) {
     return { ok: false, error: 'qty_invalid', message: 'qty ต้องเป็นจำนวนเต็มไม่ติดลบ' };
   }
@@ -202,7 +202,7 @@ function _handleCountRound2_(lineUserId, name, productId, qty, photos, pairingCo
       submitter2_name: name,
       submitter2_qty: qty,
       photo_urls: combined,
-    }, 'count', 'นับเทียบ')], 'handleSubmitCount');
+    }, 'count', 'ตรวจนับ')], 'handleSubmitCount');
     return {
       ok: true,
       countId: pairingCountId,
@@ -229,7 +229,7 @@ function _handleCountRound2_(lineUserId, name, productId, qty, photos, pairingCo
     safePushToAllManagers_([{
       type: 'text',
       text:
-        'นับเทียบ ตรงระบบ\n' +
+        'ตรวจนับ ตรงระบบ\n' +
         'รหัส: ' + pairingCountId + '\n' +
         'สินค้า: ' + productName + '\n' +
         'ยอดในระบบ = ยอดนับ = ' + finalQty,
@@ -363,7 +363,7 @@ function _tiebreakerMovement_(lineUserId, name, movementId, qty, photos) {
     typeLabel = 'หยิบออก';
   } else if (movementType === 'adjust') {
     delta = -qty;
-    typeLabel = 'ตัดสต๊อก';
+    typeLabel = 'เสียหาย';
   } else {
     return { ok: false, error: 'unknown_movement_type', movementType: movementType };
   }
@@ -480,7 +480,7 @@ function _tiebreakerCount_(lineUserId, name, countId, qty, photos) {
     safePushToAllManagers_([{
       type: 'text',
       text:
-        'นับเทียบ ตรงระบบ (หัวหน้าตัดสิน)\n' +
+        'ตรวจนับ ตรงระบบ (หัวหน้าตัดสิน)\n' +
         'รหัส: ' + countId + '\n' +
         'สินค้า: ' + productName + '\n' +
         'ยอดในระบบ = ยอดนับ = ' + finalQty + '\n' +

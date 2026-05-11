@@ -70,7 +70,7 @@ const SHEET_HEADERS = {
     'confirmed_at',
   ],
 
-  // 4. Counts — นับเทียบสัปดาห์ละครั้ง (เทียบกับ Stock.qty_on_hand)
+  // 4. Counts — ตรวจนับสัปดาห์ละครั้ง (เทียบกับ Stock.qty_on_hand)
   'Counts': [
     'count_id',           // CNT-YYYYMMDD-XXXX
     'product_id',

@@ -162,7 +162,7 @@
   - variance === 0 → status='no_action' + push manager info
   - variance ≠ 0 → status='awaiting_owner' + push owner ให้กดปรับยอด
 - [x] กรณีไม่ตรง → pending_supervisor + push supervisors
-- [x] qty นับเทียบยอมรับ 0 ได้ (นับแล้วของหมด)
+- [x] qty ตรวจนับยอมรับ 0 ได้ (นับแล้วของหมด)
 - [x] payload key: `pairingCountId` (แทน pairingMovementId)
 - **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
@@ -262,7 +262,7 @@
 - [x] test wrappers: `testSendDailyReport()`, `testSendWeeklyReport()`
 - [x] **retrofit flex cards ใน handlers:**
   - Inbound/Outbound/Adjust mismatch → `buildSupervisorTiebreakerCard(record, 'movement', label)`
-  - Count mismatch → `buildSupervisorTiebreakerCard(record, 'count', 'นับเทียบ')`
+  - Count mismatch → `buildSupervisorTiebreakerCard(record, 'count', 'ตรวจนับ')`
   - Count awaiting_owner (รอบ 2 + tiebreaker path) → `buildVarianceAlertCard()`
   - submitReturn → `buildPendingReturnCard()`
   - submitCancel → `buildPendingCancelCard()`
@@ -273,7 +273,7 @@
 
 ### TASK-23: liff/index.html — landing
 - [x] หน้าแรกหลังเปิด rich menu
-- [x] แสดง 6 ปุ่มหลัก (รับเข้า / หยิบออก / นับเทียบ / ตัดสต๊อก / ตีคืน / ยกเลิก)
+- [x] แสดง 6 ปุ่มหลัก (รับเข้า / หยิบออก / ตรวจนับ / เสียหาย / ตีคืน / ยกเลิก)
 - [x] แต่ละปุ่ม: anchor link ตรงไป <page>.html
 - [x] ปุ่มเจ้าของโผล่เฉพาะ owner (เช็คผ่าน getOwnerDashboard — ok=true แสดง)
 
@@ -345,8 +345,8 @@
 - [ ] รับเข้า: นับไม่ตรง → หัวหน้าตัดสิน
 - [ ] หยิบออก: Stock ลด
 - [ ] หยิบออก: ของไม่พอ — ปฏิเสธ
-- [ ] นับเทียบ: variance ≠ 0 → owner ได้ alert → กดปรับยอด → Stock ตรง
-- [ ] ตัดสต๊อก: ของเสีย — Stock ลด
+- [ ] ตรวจนับ: variance ≠ 0 → owner ได้ alert → กดปรับยอด → Stock ตรง
+- [ ] เสียหาย: ของเสีย — Stock ลด
 - [ ] ตีคืน: ของเรา + ดี — Stock เพิ่ม
 - [ ] ตีคืน: ของเรา + ไม่ดี — Stock ไม่เปลี่ยน
 - [ ] ตีคืน: ไม่ใช่ของเรา → claim 3 ขั้น

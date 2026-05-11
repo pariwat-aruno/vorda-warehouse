@@ -68,7 +68,7 @@ graph TD
 - เหมือน Flow A แต่ apply Stock เป็นลบ (qty_on_hand -= qty)
 - ก่อน apply ตรวจ qty_on_hand >= qty — ถ้าไม่พอ reject + push manager
 
-### Flow C: นับเทียบ (count) — สัปดาห์ละครั้ง
+### Flow C: ตรวจนับ (count) — สัปดาห์ละครั้ง
 
 | # | Step | ใครทำ | ข้อมูล | ปลายทาง |
 |---|---|---|---|---|
@@ -81,7 +81,7 @@ graph TD
 | 11 | adjustStock → insert Movement (adjust) → apply Stock | Apps Script | — | Sheet |
 | 12 | update count: status=resolved_by_adjust | Apps Script | — | Sheet |
 
-### Flow D: ตัดสต๊อก (adjust) — ของเสีย/แตก
+### Flow D: เสียหาย (adjust) — ของเสีย/แตก
 - เหมือน Flow A แต่:
   - field `reason` บังคับ (เหตุผลที่ตัด)
   - apply Stock เป็นลบ (qty_on_hand -= qty)
@@ -127,7 +127,7 @@ graph TD
 - `Products` — master 5 SKU
 - `Stock` — ยอดคงเหลือปัจจุบัน
 - `Movements` — ทุก movement
-- `Counts` — นับเทียบสัปดาห์ละครั้ง
+- `Counts` — ตรวจนับสัปดาห์ละครั้ง
 - `Returns` — ตีคืนสินค้า
 - `Cancellations` — ยกเลิกออเดอร์
 - `Claims` — flow เคลม 3 ขั้น

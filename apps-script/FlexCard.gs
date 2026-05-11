@@ -1,7 +1,7 @@
 /**
  * FlexCard.gs — LINE flex message builders
  *
- *   - buildVarianceAlertCard(count): นับเทียบไม่ตรงระบบ → push owner
+ *   - buildVarianceAlertCard(count): ตรวจนับไม่ตรงระบบ → push owner
  *   - buildPendingReturnCard(returnRow): ตีคืนรอ approve
  *   - buildPendingCancelCard(cancelRow): ยกเลิกรอ approve
  *   - buildSupervisorTiebreakerCard(record, kind): นับ 2 คนไม่ตรง → หัวหน้าตัดสิน
@@ -87,10 +87,10 @@ function buildVarianceAlertCard(count) {
   const varianceColor = variance > 0 ? '#16a34a' : CHERRY_PRIMARY;
   return {
     type: 'flex',
-    altText: '⚠️ นับเทียบไม่ตรงระบบ — ' + (count.product_name || '') + ' ส่วนต่าง ' + varianceStr,
+    altText: '⚠️ ตรวจนับไม่ตรงระบบ — ' + (count.product_name || '') + ' ส่วนต่าง ' + varianceStr,
     contents: {
       type: 'bubble',
-      header: _flexHeader_('⚠️ นับเทียบไม่ตรงระบบ'),
+      header: _flexHeader_('⚠️ ตรวจนับไม่ตรงระบบ'),
       body: {
         type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md',
         contents: [
@@ -205,7 +205,7 @@ function buildSupervisorTiebreakerCard(record, kind, typeLabel) {
 
   const bodyContents = [
     _flexRow_('รหัส', recordId),
-    _flexRow_(isCount ? 'ประเภท' : 'ประเภท', typeLabel || (isCount ? 'นับเทียบ' : 'movement')),
+    _flexRow_(isCount ? 'ประเภท' : 'ประเภท', typeLabel || (isCount ? 'ตรวจนับ' : 'movement')),
     _flexRow_('สินค้า', record.product_name || ''),
   ];
 
@@ -261,7 +261,7 @@ function buildDailyReportCard(report) {
         { type: 'text', text: 'การเคลื่อนไหวสต๊อก', weight: 'bold', size: 'sm', color: '#555555' },
         _flexRow_('รับเข้า', '+' + (byType.inbound || 0)),
         _flexRow_('หยิบออก', '-' + (byType.outbound || 0)),
-        _flexRow_('ตัดสต๊อก', '-' + (byType.adjust || 0)),
+        _flexRow_('เสียหาย', '-' + (byType.adjust || 0)),
         _flexRow_('ตีคืนเข้า', '+' + (byType.return_in || 0)),
         _flexRow_('ยกเลิกเข้า', '+' + (byType.cancel_in || 0)),
         { type: 'separator', margin: 'md' },
@@ -304,11 +304,11 @@ function buildWeeklyReportCard(report) {
         { type: 'text', text: 'การเคลื่อนไหวสต๊อกรวมสัปดาห์', weight: 'bold', size: 'sm', color: '#555555' },
         _flexRow_('รับเข้า', '+' + (byType.inbound || 0)),
         _flexRow_('หยิบออก', '-' + (byType.outbound || 0)),
-        _flexRow_('ตัดสต๊อก', '-' + (byType.adjust || 0)),
+        _flexRow_('เสียหาย', '-' + (byType.adjust || 0)),
         _flexRow_('ตีคืนเข้า', '+' + (byType.return_in || 0)),
         _flexRow_('ยกเลิกเข้า', '+' + (byType.cancel_in || 0)),
         { type: 'separator', margin: 'md' },
-        { type: 'text', text: 'นับเทียบสัปดาห์', weight: 'bold', size: 'sm', color: '#555555' },
+        { type: 'text', text: 'ตรวจนับสัปดาห์', weight: 'bold', size: 'sm', color: '#555555' },
         _flexRow_('นับครบ', (report.counts && report.counts.total) || 0),
         _flexRow_('ตรงระบบ', (report.counts && report.counts.no_action) || 0),
         _flexRow_('ปรับยอดแล้ว', (report.counts && report.counts.resolved_by_adjust) || 0),

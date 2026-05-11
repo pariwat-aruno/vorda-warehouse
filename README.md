@@ -1,6 +1,6 @@
 # Vorda Warehouse
 
-ระบบคลังสินค้า Vorda Skincare — บันทึกทุก movement (รับเข้า/หยิบออก/ตัดสต๊อก/ตีคืน/ยกเลิก) แบบ double-blind 2 คน + นับเทียบรายสัปดาห์ พร้อม approve flow ผ่าน LINE
+ระบบคลังสินค้า Vorda Skincare — บันทึกทุก movement (รับเข้า/หยิบออก/เสียหาย/ตีคืน/ยกเลิก) แบบ double-blind 2 คน + ตรวจนับรายสัปดาห์ พร้อม approve flow ผ่าน LINE
 
 **Stack:** GitHub Pages (LIFF) + Apps Script (API) + Google Sheet (DB) + LINE Messaging API + Drive (storage)
 
@@ -45,8 +45,8 @@ vorda-warehouse/
 |---|---|---|---|---|
 | รับเข้าจากโรงงาน | staff 2 คน | ✅ | 4 มุม | — |
 | หยิบออกไปแพค | staff 2 คน | ✅ | 4 มุม | — |
-| นับเทียบ (สัปดาห์ละครั้ง) | staff 2 คน | ✅ | 4 มุม | — |
-| ตัดสต๊อก ของเสีย | staff 2 คน | ✅ | 4 มุม | — |
+| ตรวจนับ (สัปดาห์ละครั้ง) | staff 2 คน | ✅ | 4 มุม | — |
+| เสียหาย ของเสีย | staff 2 คน | ✅ | 4 มุม | — |
 | ตีคืนสินค้า | staff 1 + owner approve | — | optional | ✅ ตอนแกะ |
 | ยกเลิกออเดอร์ | staff 1 + owner approve | — | บังคับ | — |
 | ตัดสินกรณีนับไม่ตรง | supervisor | — | — | — |

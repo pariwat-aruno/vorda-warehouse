@@ -53,8 +53,8 @@ vorda-warehouse/
 │   ├── WebApp.gs           # doGet/doPost router + 14 actions + LINE webhook
 │   ├── Inbound.gs          # หยิบเข้าจากโรงงาน (double-blind)
 │   ├── Outbound.gs         # หยิบออกไปแพค (double-blind)
-│   ├── Count.gs            # นับเทียบสัปดาห์ละครั้ง (double-blind, ไม่ apply Stock อัตโนมัติ)
-│   ├── Adjust.gs           # ตัดสต๊อก ของเสีย (double-blind) + owner-initiated
+│   ├── Count.gs            # ตรวจนับสัปดาห์ละครั้ง (double-blind, ไม่ apply Stock อัตโนมัติ)
+│   ├── Adjust.gs           # เสียหาย ของเสีย (double-blind) + owner-initiated
 │   ├── Return.gs           # ตีคืนสินค้า + flow เคลม 3 ขั้น
 │   ├── Cancel.gs           # ยกเลิกออเดอร์
 │   ├── Submission.gs       # cancelSubmission (5 นาที) + getProducts
@@ -74,8 +74,8 @@ vorda-warehouse/
 │   ├── index.html          # landing — list 6 ปุ่มหลัก + redirect ไป LIFF apps
 │   ├── inbound.html        # รับเข้า (staff)
 │   ├── outbound.html       # หยิบออก (staff)
-│   ├── count.html          # นับเทียบ (staff)
-│   ├── adjust.html         # ตัดสต๊อก (staff)
+│   ├── count.html          # ตรวจนับ (staff)
+│   ├── adjust.html         # เสียหาย (staff)
 │   ├── return.html         # ตีคืน (staff) — มี VDO recording
 │   ├── cancel.html         # ยกเลิก (staff)
 │   └── owner.html          # owner LIFF — dashboard + approve + claim flow
@@ -94,7 +94,7 @@ vorda-warehouse/
 ### Phase 2 — LINE Channel + LIFF
 - ผู้ใช้สร้าง: LINE OA + Messaging API channel
 - สร้าง LIFF apps **7 ตัว** (inbound/outbound/count/adjust/return/cancel/owner)
-- Claude เขียน `setup_rich_menu.py` (4 ปุ่มหลัก: รับเข้า / หยิบออก / นับเทียบ / รายการอื่นๆ)
+- Claude เขียน `setup_rich_menu.py` (4 ปุ่มหลัก: รับเข้า / หยิบออก / ตรวจนับ / รายการอื่นๆ)
 - ขอ: LINE_CHANNEL_ACCESS_TOKEN + LINE_CHANNEL_SECRET + 7 LIFF_IDs
 
 ### Phase 3 — Apps Script foundation (มีอยู่แล้วใน template)

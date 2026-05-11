@@ -66,7 +66,7 @@
 
       <!-- Section 4: Count Variance -->
       <div class="dash-section">
-        <h2>นับเทียบไม่ตรง รอปรับยอด <span id="variance-count" class="muted"></span></h2>
+        <h2>ตรวจนับไม่ตรง รอปรับยอด <span id="variance-count" class="muted"></span></h2>
         <div id="variance-list"></div>
       </div>
 
@@ -270,7 +270,7 @@
       const type = String(m.movement_type || '');
       const typeLabel = type === 'inbound' ? 'รับเข้า'
                       : type === 'outbound' ? 'หยิบออก'
-                      : type === 'adjust' ? 'ตัดสต๊อก' : type;
+                      : type === 'adjust' ? 'เสียหาย' : type;
       const photoCount = String(m.photo_urls || '').split(',').filter(u => u.trim()).length;
       div.innerHTML =
         '<div><strong>' + esc(typeLabel) + '</strong> · ' + esc(m.movement_id) + '</div>' +
@@ -441,7 +441,7 @@
       const supervisorQ = v.supervisor_qty != null && v.supervisor_qty !== ''
         ? v.supervisor_name + ' = ' + v.supervisor_qty : '-';
       showDetailModal({
-        title: 'นับเทียบไม่ตรงระบบ',
+        title: 'ตรวจนับไม่ตรงระบบ',
         rows: [
           ['รหัส', v.count_id],
           ['สินค้า', v.product_name],
@@ -540,7 +540,7 @@
     }
 
     async function adjustStock(countId, deltaQty) {
-      const reason = prompt('เหตุผลปรับยอด (เช่น "นับเทียบสัปดาห์ที่ 19"):', '') || '';
+      const reason = prompt('เหตุผลปรับยอด (เช่น "ตรวจนับสัปดาห์ที่ 19"):', '') || '';
       if (!confirm(countId + '\nปรับยอด ' + (deltaQty > 0 ? '+' : '') + deltaQty + ' ?')) return;
       try {
         const res = await api.post('adjustStock', {

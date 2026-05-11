@@ -430,7 +430,7 @@ function handleApproveMovement(payload) {
     let typeLabel;
     if (movementType === 'inbound') { delta = +qtyValue; typeLabel = 'รับเข้า'; }
     else if (movementType === 'outbound') { delta = -qtyValue; typeLabel = 'หยิบออก'; }
-    else if (movementType === 'adjust') { delta = -qtyValue; typeLabel = 'ตัดสต๊อก'; }
+    else if (movementType === 'adjust') { delta = -qtyValue; typeLabel = 'เสียหาย'; }
     else return { ok: false, error: 'unknown_movement_type', movementType: movementType };
 
     if (delta < 0) {
@@ -484,7 +484,7 @@ function handleApproveMovement(payload) {
 function _movementTypeLabel_(t) {
   return t === 'inbound' ? 'รับเข้า'
        : t === 'outbound' ? 'หยิบออก'
-       : t === 'adjust' ? 'ตัดสต๊อก'
+       : t === 'adjust' ? 'เสียหาย'
        : t;
 }
 

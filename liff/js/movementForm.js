@@ -207,7 +207,7 @@ export async function initMovementForm(opts) {
     if (!cfg.allowZeroQty && qty <= 0) return showError(ui.err, 'จำนวนต้อง > 0');
     if (cfg.allowZeroQty && qty < 0) return showError(ui.err, 'จำนวนต้อง ≥ 0');
     if (qty !== Math.floor(qty)) return showError(ui.err, 'จำนวนต้องเป็นจำนวนเต็ม');
-    if (cfg.hasReason && !reason) return showError(ui.err, 'ใส่เหตุผลก่อน (ตัดสต๊อก)');
+    if (cfg.hasReason && !reason) return showError(ui.err, 'ใส่เหตุผลก่อน (เสียหาย)');
     if (photos.length < 4) return showError(ui.err, 'ถ่ายให้ครบ 4 รูปก่อน');
     if (round === 'r2' && !pairing) return showError(ui.err, 'ใส่เลข ' + cfg.idPrefix + 'YYYYMMDD-XXXX ของรอบ 1');
 
@@ -260,10 +260,10 @@ export async function initMovementForm(opts) {
         banner.textContent = '⚠️ รอบ 2 ไม่ตรงกับรอบ 1 — รอหัวหน้าตัดสิน';
       } else if (status === 'no_action') {
         banner.className = 'success-banner';
-        banner.textContent = 'นับเทียบตรงระบบ — ไม่ต้องปรับยอด';
+        banner.textContent = 'ตรวจนับตรงระบบ — ไม่ต้องปรับยอด';
       } else if (status === 'awaiting_owner') {
         banner.className = 'warning-block';
-        banner.textContent = '⚠️ นับเทียบไม่ตรงระบบ — รอเจ้าของปรับยอด (ส่วนต่าง '
+        banner.textContent = '⚠️ ตรวจนับไม่ตรงระบบ — รอเจ้าของปรับยอด (ส่วนต่าง '
           + ((res.variance > 0 ? '+' : '') + res.variance) + ')';
       } else {
         banner.className = 'success-banner';
