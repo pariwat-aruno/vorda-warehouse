@@ -46,30 +46,45 @@ export async function initMovementForm(opts) {
     allowZeroQty: false,
   }, opts);
 
+  // fallback: หา id ก่อน — ถ้าไม่เจอ ลอง class (กรณี HTML cache เก่ายังไม่มี id)
+  const $id = (id) => document.getElementById(id);
   const ui = {
-    err: document.getElementById('error'),
-    roundR1: document.getElementById('round-r1'),
-    roundR2: document.getElementById('round-r2'),
-    r1Sec: document.getElementById('r1-section'),
-    r2Sec: document.getElementById('r2-section'),
-    pairing: document.getElementById('r2-pairing'),
-    productSel: document.getElementById('product-select'),
-    qty: document.getElementById('qty-input'),
-    reason: document.getElementById('reason-input'),
-    camVid: document.getElementById('camera-video'),
-    grid: document.getElementById('photo-grid'),
-    counter: document.getElementById('photo-counter'),
-    captureBtn: document.getElementById('capture-btn'),
-    retakeBtn: document.getElementById('retake-btn'),
-    submitBtn: document.getElementById('submit-btn'),
-    afterSubmit: document.getElementById('after-submit'),
-    resultIdText: document.getElementById('result-id-text'),
-    copyIdBtn: document.getElementById('copy-id-btn'),
-    undoBar: document.getElementById('undo-bar'),
-    undoText: document.getElementById('undo-text'),
-    undoBtn: document.getElementById('undo-btn'),
-    newBtn: document.getElementById('new-btn'),
+    err: $id('error'),
+    roundR1: $id('round-r1'),
+    roundR2: $id('round-r2'),
+    r1Sec: $id('r1-section'),
+    r2Sec: $id('r2-section'),
+    pairing: $id('r2-pairing'),
+    productSel: $id('product-select'),
+    qty: $id('qty-input'),
+    reason: $id('reason-input'),
+    camVid: $id('camera-video'),
+    grid: $id('photo-grid') || document.querySelector('.photo-grid'),
+    counter: $id('photo-counter'),
+    captureBtn: $id('capture-btn'),
+    retakeBtn: $id('retake-btn'),
+    submitBtn: $id('submit-btn'),
+    afterSubmit: $id('after-submit'),
+    resultIdText: $id('result-id-text'),
+    copyIdBtn: $id('copy-id-btn'),
+    undoBar: $id('undo-bar'),
+    undoText: $id('undo-text'),
+    undoBtn: $id('undo-btn'),
+    newBtn: $id('new-btn'),
   };
+
+  // sanity check — ถ้า DOM ไม่ครบ แสดง error ชัดเจน (กัน confusion จาก cache)
+  const missing = [];
+  ['err','grid','captureBtn','submitBtn','productSel','qty','camVid'].forEach(k => {
+    if (!ui[k]) missing.push(k);
+  });
+  if (missing.length > 0) {
+    const msg = 'DOM ขาด element: ' + missing.join(', ') + ' — ปิด LIFF + เปิดใหม่ เพื่อล้าง cache';
+    if (ui.err) { ui.err.textContent = msg; ui.err.style.display = 'block'; }
+    else alert(msg);
+    console.error('movementForm: missing DOM', missing);
+    return;
+  }
 
   const photos = []; // base64 array
   let round = 'r1';
