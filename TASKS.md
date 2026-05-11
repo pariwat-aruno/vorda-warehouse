@@ -330,12 +330,15 @@
 - **Pages URL:** https://pariwat-aruno.github.io/vorda-warehouse/
 
 ### TASK-33: ปรับ LIFF Endpoint URL
-- [ ] LINE Developers → Channel → LIFF → แต่ละ app → แก้ Endpoint URL = GitHub Pages URL จริง
-- [ ] อย่าลืม owner.html ด้วย
+- [x] LINE Developers → Channel → LIFF → แต่ละ app → แก้ Endpoint URL = `pariwat-aruno.github.io/vorda-warehouse/...`
+- [x] รวม owner.html ด้วย (เดิมตั้งเป็น admin.html)
 
 ### TASK-34: Rich menu
-- [ ] รัน `scripts/setup_rich_menu.py` — แก้ LIFF_IDs ก่อนรัน
-- [ ] ตรวจ rich menu ในมือถือ
+- [x] copy `LOGO_VORDA (2).jpg` → `liff/img/logo.jpg`
+- [x] รัน `scripts/setup_rich_menu.py` (LIFF_IDs ใส่ไว้แล้ว) — image generated + uploaded
+- [x] richmenu set as default for all users (id: `richmenu-94fb34af05431309e307a8a0602b67c6`)
+- [x] **LINE webhook URL ตั้งผ่าน API** (PUT /v2/bot/channel/webhook/endpoint) แทนกด UI
+- [ ] ตรวจ rich menu ในมือถือ (ทดสอบใน TASK-35)
 
 ### TASK-35: ทดสอบ end-to-end (มือถือจริง)
 - [ ] รับเข้า: 2 พนักงาน double-blind ผ่าน — Stock update
