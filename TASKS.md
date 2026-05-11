@@ -187,37 +187,40 @@
 - **Acceptance:** ⏳ test end-to-end ตอน LIFF พร้อม
 
 ### TASK-15: Return.gs::handleSubmitReturn
-- [ ] dedup
-- [ ] upload VDO + รูป (ถ้ามี)
-- [ ] insert Returns row: status='pending_owner'
-- [ ] pushToAllOwners flex card (มี VDO link + ปุ่ม approve/reject/forward)
-- **Acceptance:** owner ได้ LINE flex พร้อมข้อมูลครบ
+- [x] dedup
+- [x] upload VDO (required, anti-fraud) + รูป (optional)
+- [x] insert Returns row: status='pending_owner' + is_our_product + condition
+- [x] pushToAllOwners (text alert ตอนนี้ — flex card TASK-20)
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-16: Return.gs::handleApproveReturn
-- [ ] เช็ค isOwner + status===pending_owner
-- [ ] decision='accept_to_stock':
-  - ตรวจ condition===good (ถ้า bad → reject อัตโนมัติ)
-  - insert Movement (movement_type='return_in', qty=+) → apply Stock
+- [x] เช็ค isOwner + status===pending_owner (with LockService 5s)
+- [x] decision='accept_to_stock':
+  - validate condition='good' AND isOurProduct=true (else cannot_accept_*)
+  - insert Movement (return_in, +qty, related_doc_id=returnId) → apply Stock
   - update status='accepted'
-- [ ] decision='reject_bad':
-  - status='rejected', ไม่ apply Stock
-- [ ] decision='forward_to_claim':
-  - สร้าง Claim row (stage='submitting')
-  - update Returns: status='forwarded_to_claim', claim_id
-- [ ] reply LINE owner ว่าทำสำเร็จ
+- [x] decision='reject_bad': status='rejected', ไม่ apply Stock
+- [x] decision='forward_to_claim': สร้าง Claim stage='submitting' + status='forwarded_to_claim' + claim_id
+- [x] push owners confirmation
+- [x] `handleRejectReturn` shortcut (decision=reject_bad)
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-17: Return.gs::handleUpdateClaimStage
-- [ ] เช็ค isOwner
-- [ ] รับ claimId + newStage + screenshot (base64) + closedResult?
-- [ ] เช็ค transition ถูกต้อง (submitting→submitted→closed เท่านั้น)
-- [ ] upload screenshot → Drive
-- [ ] update Claim row
+- [x] เช็ค isOwner
+- [x] รับ claimId + newStage + screenshot (base64) + closedResult?
+- [x] เช็ค transition: submitting→submitted (need screenshot) → closed (need screenshot + closedResult)
+- [x] upload screenshot → Drive (return subfolder, filename `<claimId>-<stage>.jpg`)
+- [x] update Claim row: stage, screenshot_*, closed_result (if closed), last_updated_*
+- [x] push owners stage transition
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-18: Cancel.gs::handleSubmitCancel + handleApproveCancel
-- [ ] submitCancel: insert Cancellations row + push owner
-- [ ] approveCancel:
-  - accept → insert Movement (cancel_in, +qty) → apply Stock → status='accepted'
+- [x] submitCancel: validate + upload photos (≥1) + insert Cancellations row + push owner
+- [x] approveCancel (LockService 5s + isOwner + status check):
+  - accept → insert Movement (cancel_in, +qty, related_doc_id=cancelId) → apply Stock → status='accepted'
   - reject → status='rejected'
+- [x] push owners confirmation
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-19: Owner.gs::handleOwnerDashboard
 - [ ] เช็ค isOwner
