@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ตีคืน — คลัง Vorda</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <style>
+    .vdo-wrap { position: relative; background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 4 / 3; margin-bottom: 12px; }
+    .vdo-wrap video { width: 100%; height: 100%; object-fit: cover; }
+    .rec-dot { position: absolute; top: 10px; left: 10px; padding: 4px 10px; border-radius: 12px; background: rgba(200,16,46,0.92); color: #fff; font-size: 11px; font-weight: 700; display: none; }
+    .rec-dot.live { display: inline-block; }
+    .rec-timer { position: absolute; top: 10px; right: 10px; padding: 4px 10px; border-radius: 12px; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; font-weight: 600; font-family: "SF Mono", Menlo, monospace; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./img/logo.jpg" alt="VORDA SKINCARE" />
+    <div class="brand">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+    <h1>ตีคืนสินค้า</h1>
+    <div class="subtitle">ลูกค้าส่งคืน — ต้องถ่าย VDO ตอนแกะ</div>
+
+    <div id="error" class="error" style="display:none"></div>
+
+    <div id="form-section">
+      <div class="warning-block">
+        <strong>ขั้นตอน:</strong> 1) กรอกข้อมูล 2) กดเริ่มอัด → แกะของ → กดหยุด (≤ 30 วิ) 3) (ถ้าของเรา) เลือกสินค้า + สภาพ 4) submit
+      </div>
+
+      <div class="field">
+        <div class="label">เลข tracking</div>
+        <input id="tracking-input" type="text" placeholder="เช่น TH123456789" />
+      </div>
+
+      <div class="checkbox-row">
+        <input id="is-our-product" type="checkbox" checked />
+        <label for="is-our-product">เป็นสินค้าของเรา</label>
+      </div>
+
+      <div id="product-section">
+        <div class="field">
+          <div class="label">สินค้า</div>
+          <select id="product-select"><option>กำลังโหลด...</option></select>
+        </div>
+        <div class="field">
+          <div class="label">จำนวน (ชิ้น)</div>
+          <input id="qty-input" type="number" inputmode="numeric" min="1" placeholder="0" />
+        </div>
+        <div class="field">
+          <div class="label">สภาพ</div>
+          <div class="row">
+            <label><input type="radio" name="condition" value="good" checked /> ดี (เข้า Stock ได้)</label>
+            <label><input type="radio" name="condition" value="bad" /> ไม่ดี (reject)</label>
+          </div>
+        </div>
+      </div>
+
+      <div id="not-our-product-section" style="display:none">
+        <div class="field">
+          <div class="label">ชื่อสินค้า (ที่ลูกค้าส่งมา — ไม่ใช่ของเรา)</div>
+          <input id="product-name-input" type="text" placeholder="ชื่อสินค้าที่เห็นในใบ/บนกล่อง" />
+        </div>
+        <div class="field">
+          <div class="label">จำนวน</div>
+          <input id="qty-input-alt" type="number" inputmode="numeric" min="1" placeholder="0" />
+        </div>
+      </div>
+
+      <div class="label">VDO ตอนแกะ (≤ 30 วินาที)</div>
+      <div class="vdo-wrap">
+        <video id="vdo-preview" autoplay playsinline muted></video>
+        <div id="rec-dot" class="rec-dot">● REC</div>
+        <div id="rec-timer" class="rec-timer">0 / 30 วิ</div>
+      </div>
+      <div class="row">
+        <button id="rec-start" class="btn-primary" type="button">เริ่มอัด</button>
+        <button id="rec-stop" class="btn-neutral" type="button" disabled>หยุด</button>
+      </div>
+      <button id="rec-retake" class="btn-secondary" type="button" style="display:none">อัดใหม่</button>
+
+      <button id="submit-btn" class="btn-primary" type="button" style="margin-top:14px" disabled>บันทึก (รออัด VDO)</button>
+    </div>
+
+    <div id="after-submit" style="display:none">
+      <div id="result-banner" class="success-banner"></div>
+      <div class="mov-id-box">
+        <div class="label-small">เลขใบ RET</div>
+        <div id="result-id-text" class="id-text"></div>
+      </div>
+
+      <div id="undo-bar" class="undo-bar" style="display:none">
+        <div id="undo-text"></div>
+        <button id="undo-btn" type="button">ยกเลิกการบันทึก</button>
+      </div>
+
+      <button id="new-btn" class="btn-secondary" type="button" style="margin-top:12px">บันทึกรายการใหม่</button>
+    </div>
+  </div>
+
+  <div class="page-footer">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+    import { initAuth, state } from './js/auth.js';
+    import { api } from './js/api.js';
+    import { showError, clearError } from './js/utils.js';
+
+    const MAX_SEC = 30;
+
+    const ui = {
+      err: document.getElementById('error'),
+      tracking: document.getElementById('tracking-input'),
+      isOur: document.getElementById('is-our-product'),
+      productSec: document.getElementById('product-section'),
+      productSel: document.getElementById('product-select'),
+      qty: document.getElementById('qty-input'),
+      notOurSec: document.getElementById('not-our-product-section'),
+      productNameAlt: document.getElementById('product-name-input'),
+      qtyAlt: document.getElementById('qty-input-alt'),
+      condRadios: document.querySelectorAll('input[name="condition"]'),
+      vdoPrev: document.getElementById('vdo-preview'),
+      recDot: document.getElementById('rec-dot'),
+      recTimer: document.getElementById('rec-timer'),
+      recStart: document.getElementById('rec-start'),
+      recStop: document.getElementById('rec-stop'),
+      recRetake: document.getElementById('rec-retake'),
+      submitBtn: document.getElementById('submit-btn'),
+      formSec: document.getElementById('form-section'),
+      afterSubmit: document.getElementById('after-submit'),
+      resultBanner: document.getElementById('result-banner'),
+      resultIdText: document.getElementById('result-id-text'),
+      undoBar: document.getElementById('undo-bar'),
+      undoText: document.getElementById('undo-text'),
+      undoBtn: document.getElementById('undo-btn'),
+      newBtn: document.getElementById('new-btn'),
+    };
+
+    let stream = null;
+    let recorder = null;
+    let chunks = [];
+    let videoBlob = null;
+    let videoMime = '';
+    let videoBase64 = null;
+    let timerInt = null;
+    let recStartedAt = 0;
+
+    try {
+      await initAuth(CONFIG.LIFF_ID_RETURN);
+    } catch (err) { showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message); }
+
+    try {
+      const res = await api.post('getProducts', { lineUserId: state.lineUserId });
+      ui.productSel.innerHTML = '<option value="">— เลือกสินค้า —</option>';
+      (res.products || []).forEach(function (p) {
+        const opt = document.createElement('option');
+        opt.value = p.product_id;
+        opt.textContent = p.product_name + ' (คงเหลือ ' + p.qty_on_hand + ' ' + (p.unit || 'ชิ้น') + ')';
+        ui.productSel.appendChild(opt);
+      });
+    } catch (err) {
+      showError(ui.err, 'โหลดสินค้าไม่ได้: ' + (err.code || err.message));
+    }
+
+    // toggle our-product
+    ui.isOur.addEventListener('change', function () {
+      const isOur = ui.isOur.checked;
+      ui.productSec.style.display = isOur ? 'block' : 'none';
+      ui.notOurSec.style.display = isOur ? 'none' : 'block';
+    });
+
+    // start preview camera
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      ui.vdoPrev.srcObject = stream;
+      ui.vdoPrev.muted = true;
+      ui.vdoPrev.setAttribute('playsinline', '');
+      await ui.vdoPrev.play();
+    } catch (err) {
+      showError(ui.err, 'เปิดกล้องไม่ได้: ' + err.message);
+    }
+
+    function pickMimeType() {
+      const candidates = [
+        'video/mp4;codecs=h264',
+        'video/mp4',
+        'video/webm;codecs=vp8',
+        'video/webm',
+      ];
+      if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+      for (const m of candidates) if (MediaRecorder.isTypeSupported(m)) return m;
+      return '';
+    }
+
+    ui.recStart.addEventListener('click', function () {
+      if (!stream) return showError(ui.err, 'กล้องยังไม่พร้อม');
+      if (recorder && recorder.state === 'recording') return;
+      clearError(ui.err);
+      chunks = [];
+      videoMime = pickMimeType();
+      try {
+        recorder = videoMime
+          ? new MediaRecorder(stream, { mimeType: videoMime, videoBitsPerSecond: 600000 })
+          : new MediaRecorder(stream, { videoBitsPerSecond: 600000 });
+      } catch (err) {
+        return showError(ui.err, 'อัด VDO ไม่ได้: ' + err.message);
+      }
+      recorder.ondataavailable = function (e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = onRecStopped;
+      recorder.start();
+      recStartedAt = Date.now();
+      ui.recDot.classList.add('live');
+      ui.recStart.disabled = true;
+      ui.recStop.disabled = false;
+      timerInt = setInterval(tickTimer, 250);
+    });
+
+    ui.recStop.addEventListener('click', function () {
+      if (recorder && recorder.state === 'recording') recorder.stop();
+    });
+
+    ui.recRetake.addEventListener('click', function () {
+      videoBlob = null; videoBase64 = null;
+      ui.recRetake.style.display = 'none';
+      ui.recStart.disabled = false;
+      ui.recStop.disabled = true;
+      ui.recTimer.textContent = '0 / ' + MAX_SEC + ' วิ';
+      // reattach preview
+      ui.vdoPrev.srcObject = stream;
+      ui.vdoPrev.muted = true;
+      ui.vdoPrev.play();
+      ui.submitBtn.disabled = true;
+      ui.submitBtn.textContent = 'บันทึก (รออัด VDO)';
+    });
+
+    function tickTimer() {
+      const elapsed = (Date.now() - recStartedAt) / 1000;
+      ui.recTimer.textContent = Math.floor(elapsed) + ' / ' + MAX_SEC + ' วิ';
+      if (elapsed >= MAX_SEC) {
+        if (recorder && recorder.state === 'recording') recorder.stop();
+      }
+    }
+
+    async function onRecStopped() {
+      clearInterval(timerInt);
+      ui.recDot.classList.remove('live');
+      ui.recStop.disabled = true;
+      ui.recStart.disabled = true;
+      const elapsed = ((Date.now() - recStartedAt) / 1000).toFixed(1);
+      ui.recTimer.textContent = elapsed + ' / ' + MAX_SEC + ' วิ (เสร็จ)';
+
+      const blobType = (recorder && recorder.mimeType) || videoMime || 'video/webm';
+      videoBlob = new Blob(chunks, { type: blobType });
+      // preview เล่นซ้ำ
+      const url = URL.createObjectURL(videoBlob);
+      ui.vdoPrev.srcObject = null;
+      ui.vdoPrev.src = url;
+      ui.vdoPrev.muted = false;
+      ui.vdoPrev.controls = true;
+
+      ui.recRetake.style.display = 'block';
+
+      // convert to base64
+      try {
+        videoBase64 = await blobToDataUrl(videoBlob);
+        ui.submitBtn.disabled = false;
+        ui.submitBtn.textContent = 'บันทึก';
+      } catch (err) {
+        showError(ui.err, 'แปลง VDO ไม่สำเร็จ: ' + err.message);
+      }
+    }
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onerror = () => reject(r.error);
+        r.onload = () => resolve(r.result);
+        r.readAsDataURL(blob);
+      });
+    }
+
+    ui.submitBtn.addEventListener('click', async function () {
+      clearError(ui.err);
+      const trackingNumber = ui.tracking.value.trim();
+      const isOurProduct = ui.isOur.checked;
+      let productId = '', productName = '', qty = 0;
+      if (isOurProduct) {
+        productId = ui.productSel.value;
+        qty = Number(ui.qty.value);
+      } else {
+        productName = ui.productNameAlt.value.trim();
+        qty = Number(ui.qtyAlt.value);
+      }
+      let condition = 'good';
+      ui.condRadios.forEach(function (r) { if (r.checked) condition = r.value; });
+
+      if (!trackingNumber) return showError(ui.err, 'ใส่เลข tracking ก่อน');
+      if (isOurProduct && !productId) return showError(ui.err, 'เลือกสินค้าก่อน');
+      if (!isOurProduct && !productName) return showError(ui.err, 'ใส่ชื่อสินค้าที่ลูกค้าส่งมา');
+      if (!qty || qty <= 0 || qty !== Math.floor(qty)) return showError(ui.err, 'จำนวนต้องเป็นจำนวนเต็มบวก');
+      if (!videoBase64) return showError(ui.err, 'ต้องอัด VDO ก่อน');
+
+      ui.submitBtn.disabled = true;
+      ui.submitBtn.textContent = 'กำลังอัปโหลด...';
+      try {
+        const res = await api.post('submitReturn', {
+          lineUserId: state.lineUserId,
+          name: state.profile && state.profile.displayName || '',
+          trackingNumber: trackingNumber,
+          productId: productId,
+          productName: productName,
+          qty: qty,
+          isOurProduct: isOurProduct,
+          condition: condition,
+          videoBase64: videoBase64,
+          photos: [],
+        });
+        // stop stream
+        if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+        ui.formSec.style.display = 'none';
+        ui.afterSubmit.style.display = 'block';
+        ui.resultBanner.className = 'success-banner';
+        ui.resultBanner.textContent = 'บันทึกตีคืน สำเร็จ — รอเจ้าของ approve';
+        ui.resultIdText.textContent = res.returnId;
+        startUndo(res.returnId);
+      } catch (err) {
+        ui.submitBtn.disabled = false;
+        ui.submitBtn.textContent = 'บันทึก';
+        showError(ui.err, 'บันทึกไม่ได้: ' + (err.code || err.message)
+          + (err.data && err.data.message ? ' — ' + err.data.message : ''));
+      }
+    });
+
+    function startUndo(recordId) {
+      const windowSec = CONFIG.CANCEL_WINDOW_SECONDS || 300;
+      const exp = Date.now() + windowSec * 1000;
+      ui.undoBar.style.display = 'block';
+      const timer = setInterval(tick, 1000);
+      tick();
+      function tick() {
+        const remaining = Math.max(0, Math.round((exp - Date.now()) / 1000));
+        const mm = Math.floor(remaining / 60), ss = remaining % 60;
+        ui.undoText.textContent = 'ยกเลิกได้อีก ' + mm + ':' + (ss < 10 ? '0' : '') + ss;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          ui.undoBar.classList.add('expired');
+          ui.undoText.textContent = 'หมดเวลายกเลิก';
+          ui.undoBtn.style.display = 'none';
+        }
+      }
+      ui.undoBtn.onclick = async function () {
+        if (Date.now() >= exp) return;
+        const reason = prompt('เหตุผล (optional):') || '';
+        ui.undoBtn.disabled = true;
+        try {
+          await api.post('cancelSubmission', {
+            lineUserId: state.lineUserId, recordType: 'return',
+            recordId: recordId, reason: reason,
+          });
+          clearInterval(timer);
+          ui.undoBar.classList.add('expired');
+          ui.undoText.textContent = 'ยกเลิกแล้ว';
+          ui.undoBtn.style.display = 'none';
+        } catch (err) {
+          ui.undoBtn.disabled = false;
+          showError(ui.err, 'ยกเลิกไม่สำเร็จ: ' + (err.code || err.message));
+        }
+      };
+    }
+
+    ui.newBtn.addEventListener('click', function () { location.reload(); });
+  </script>
+</body>
+</html>

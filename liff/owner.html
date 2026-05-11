@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>เมนูเจ้าของ — คลัง Vorda</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./img/logo.jpg" alt="VORDA SKINCARE" />
+    <div class="brand">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+    <h1>เมนูเจ้าของ</h1>
+    <div class="subtitle">approve + ปรับยอด + รายงาน</div>
+
+    <div id="error" class="error" style="display:none"></div>
+    <div id="success" class="success-banner" style="display:none"></div>
+
+    <div id="loading" class="muted" style="text-align:center; padding: 20px">กำลังโหลด dashboard...</div>
+
+    <div id="dashboard" style="display:none">
+      <!-- Section 1: Stock -->
+      <div class="dash-section">
+        <h2>ยอดสต๊อก</h2>
+        <table class="stock-table">
+          <thead><tr><th>สินค้า</th><th style="text-align:right">คงเหลือ</th></tr></thead>
+          <tbody id="stock-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Section 2: Pending Returns -->
+      <div class="dash-section">
+        <h2>ตีคืน รอ approve <span id="returns-count" class="muted"></span></h2>
+        <div id="returns-list"></div>
+      </div>
+
+      <!-- Section 3: Pending Cancellations -->
+      <div class="dash-section">
+        <h2>ยกเลิก รอ approve <span id="cancels-count" class="muted"></span></h2>
+        <div id="cancels-list"></div>
+      </div>
+
+      <!-- Section 4: Count Variance -->
+      <div class="dash-section">
+        <h2>นับเทียบไม่ตรง รอปรับยอด <span id="variance-count" class="muted"></span></h2>
+        <div id="variance-list"></div>
+      </div>
+
+      <!-- Section 5: Open Claims -->
+      <div class="dash-section">
+        <h2>เคลม ค้างอยู่ <span id="claims-count" class="muted"></span></h2>
+        <div id="claims-list"></div>
+      </div>
+
+      <!-- Section 6: Reports -->
+      <div class="dash-section">
+        <h2>รายงาน</h2>
+        <div class="row">
+          <button id="daily-btn" class="btn-secondary" type="button">รายวัน (ส่ง LINE)</button>
+          <button id="weekly-btn" class="btn-secondary" type="button">รายสัปดาห์ (ส่ง LINE)</button>
+        </div>
+        <button id="reload-btn" class="btn-primary" type="button" style="margin-top:10px">โหลดใหม่</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+
+  <!-- Modal placeholder -->
+  <div id="modal" style="display:none"></div>
+
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+    import { initAuth, state } from './js/auth.js';
+    import { api } from './js/api.js';
+    import { showError, clearError } from './js/utils.js';
+
+    const ui = {
+      err: document.getElementById('error'),
+      ok: document.getElementById('success'),
+      loading: document.getElementById('loading'),
+      dash: document.getElementById('dashboard'),
+      stockBody: document.getElementById('stock-tbody'),
+      returnsList: document.getElementById('returns-list'),
+      cancelsList: document.getElementById('cancels-list'),
+      varianceList: document.getElementById('variance-list'),
+      claimsList: document.getElementById('claims-list'),
+      retCount: document.getElementById('returns-count'),
+      cxlCount: document.getElementById('cancels-count'),
+      varCount: document.getElementById('variance-count'),
+      clmCount: document.getElementById('claims-count'),
+      modal: document.getElementById('modal'),
+    };
+
+    function flash(banner, msg) {
+      banner.textContent = msg;
+      banner.style.display = 'block';
+      setTimeout(function () { banner.style.display = 'none'; }, 4000);
+    }
+
+    try {
+      await initAuth(CONFIG.LIFF_ID_OWNER);
+    } catch (err) {
+      showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message);
+    }
+
+    async function loadDashboard() {
+      ui.loading.style.display = 'block';
+      ui.dash.style.display = 'none';
+      try {
+        const data = await api.post('getOwnerDashboard', { lineUserId: state.lineUserId });
+        renderDashboard(data);
+        ui.loading.style.display = 'none';
+        ui.dash.style.display = 'block';
+      } catch (err) {
+        ui.loading.style.display = 'none';
+        if (err.code === 'not_owner') {
+          showError(ui.err, 'คุณไม่มีสิทธิ์เข้าถึง (ต้องเป็นเจ้าของ)');
+        } else {
+          showError(ui.err, 'โหลด dashboard ไม่สำเร็จ: ' + (err.code || err.message));
+        }
+      }
+    }
+
+    function renderDashboard(d) {
+      // Stock
+      ui.stockBody.innerHTML = '';
+      (d.stock || []).forEach(function (s) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + esc(s.product_name) + '</td>'
+          + '<td class="qty">' + s.qty_on_hand + ' ' + esc(s.unit || 'ชิ้น') + '</td>';
+        ui.stockBody.appendChild(tr);
+      });
+
+      // Returns
+      ui.retCount.textContent = '(' + (d.pending_returns || []).length + ')';
+      ui.returnsList.innerHTML = '';
+      if (!d.pending_returns || d.pending_returns.length === 0) {
+        ui.returnsList.innerHTML = '<div class="empty">ไม่มีรายการรอ approve</div>';
+      } else {
+        d.pending_returns.forEach(function (r) {
+          ui.returnsList.appendChild(makeReturnItem(r));
+        });
+      }
+
+      // Cancels
+      ui.cxlCount.textContent = '(' + (d.pending_cancels || []).length + ')';
+      ui.cancelsList.innerHTML = '';
+      if (!d.pending_cancels || d.pending_cancels.length === 0) {
+        ui.cancelsList.innerHTML = '<div class="empty">ไม่มีรายการรอ approve</div>';
+      } else {
+        d.pending_cancels.forEach(function (c) {
+          ui.cancelsList.appendChild(makeCancelItem(c));
+        });
+      }
+
+      // Variance
+      ui.varCount.textContent = '(' + (d.pending_count_variance || []).length + ')';
+      ui.varianceList.innerHTML = '';
+      if (!d.pending_count_variance || d.pending_count_variance.length === 0) {
+        ui.varianceList.innerHTML = '<div class="empty">ไม่มี variance ค้าง</div>';
+      } else {
+        d.pending_count_variance.forEach(function (v) {
+          ui.varianceList.appendChild(makeVarianceItem(v));
+        });
+      }
+
+      // Claims
+      ui.clmCount.textContent = '(' + (d.open_claims || []).length + ')';
+      ui.claimsList.innerHTML = '';
+      if (!d.open_claims || d.open_claims.length === 0) {
+        ui.claimsList.innerHTML = '<div class="empty">ไม่มีเคลมค้าง</div>';
+      } else {
+        d.open_claims.forEach(function (c) {
+          ui.claimsList.appendChild(makeClaimItem(c));
+        });
+      }
+    }
+
+    function esc(s) { return String(s || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+
+    function makeReturnItem(r) {
+      const div = document.createElement('div');
+      div.className = 'dash-item';
+      const cond = String(r.condition).toLowerCase() === 'good' ? 'ดี' : 'ไม่ดี';
+      const isOur = (r.is_our_product === true || String(r.is_our_product).toLowerCase() === 'true');
+      const vdo = r.video_url ? '<a href="' + r.video_url + '" target="_blank">ดู VDO</a>' : '';
+      div.innerHTML =
+        '<div><strong>' + esc(r.return_id) + '</strong> · tracking: ' + esc(r.tracking_number) + '</div>' +
+        '<div class="meta">' + esc(r.product_name || '(ไม่ใช่ของเรา)') + ' × ' + r.qty + ' · สภาพ ' + cond + ' · ของเรา: ' + (isOur ? 'ใช่' : 'ไม่ใช่') + '</div>' +
+        '<div class="meta">โดย ' + esc(r.staff_name) + '   ' + vdo + '</div>' +
+        '<div class="actions"></div>';
+      const acts = div.querySelector('.actions');
+
+      const accept = document.createElement('button');
+      accept.className = 'btn-primary';
+      accept.textContent = 'รับเข้า Stock';
+      accept.disabled = !(isOur && cond === 'ดี');
+      accept.title = isOur && cond === 'ดี' ? '' : 'ใช้เฉพาะ "ของเรา + สภาพดี"';
+      accept.onclick = function () { approveReturn(r.return_id, 'accept_to_stock', div); };
+
+      const reject = document.createElement('button');
+      reject.className = 'btn-neutral';
+      reject.textContent = 'Reject';
+      reject.onclick = function () { approveReturn(r.return_id, 'reject_bad', div); };
+
+      const forward = document.createElement('button');
+      forward.className = 'btn-secondary';
+      forward.textContent = 'ส่งเคลม';
+      forward.onclick = function () { approveReturn(r.return_id, 'forward_to_claim', div); };
+
+      acts.appendChild(accept);
+      acts.appendChild(reject);
+      acts.appendChild(forward);
+      return div;
+    }
+
+    function makeCancelItem(c) {
+      const div = document.createElement('div');
+      div.className = 'dash-item';
+      div.innerHTML =
+        '<div><strong>' + esc(c.cancel_id) + '</strong> · tracking: ' + esc(c.tracking_number) + '</div>' +
+        '<div class="meta">' + esc(c.product_name) + ' × ' + c.qty + ' · โดย ' + esc(c.staff_name) + '</div>' +
+        '<div class="actions"></div>';
+      const acts = div.querySelector('.actions');
+
+      const acc = document.createElement('button');
+      acc.className = 'btn-primary'; acc.textContent = 'Accept (เข้า Stock)';
+      acc.onclick = function () { approveCancel(c.cancel_id, 'accept', div); };
+
+      const rej = document.createElement('button');
+      rej.className = 'btn-neutral'; rej.textContent = 'Reject';
+      rej.onclick = function () { approveCancel(c.cancel_id, 'reject', div); };
+
+      acts.appendChild(acc); acts.appendChild(rej);
+      return div;
+    }
+
+    function makeVarianceItem(v) {
+      const div = document.createElement('div');
+      div.className = 'dash-item';
+      const delta = Number(v.variance || 0);
+      const deltaStr = (delta > 0 ? '+' : '') + delta;
+      div.innerHTML =
+        '<div><strong>' + esc(v.count_id) + '</strong> · ' + esc(v.product_name) + '</div>' +
+        '<div class="meta">ในระบบ ' + v.system_qty + ' · นับจริง ' + v.final_qty + ' · ส่วนต่าง <strong>' + deltaStr + '</strong></div>' +
+        '<div class="actions"></div>';
+      const acts = div.querySelector('.actions');
+      const adj = document.createElement('button');
+      adj.className = 'btn-primary'; adj.textContent = 'ปรับยอดให้ตรง (' + deltaStr + ')';
+      adj.onclick = function () { adjustStock(v.count_id, delta, div); };
+      acts.appendChild(adj);
+      return div;
+    }
+
+    function makeClaimItem(c) {
+      const div = document.createElement('div');
+      div.className = 'dash-item';
+      div.innerHTML =
+        '<div><strong>' + esc(c.claim_id) + '</strong> · tracking: ' + esc(c.tracking_number) + '</div>' +
+        '<div class="meta">stage: <strong>' + esc(c.stage) + '</strong></div>' +
+        '<div class="actions"></div>';
+      const acts = div.querySelector('.actions');
+      if (c.stage === 'submitting') {
+        const btn = document.createElement('button');
+        btn.className = 'btn-primary'; btn.textContent = 'ยื่นเรื่องแล้ว (upload screenshot)';
+        btn.onclick = function () { promptScreenshot(c.claim_id, 'submitted', div); };
+        acts.appendChild(btn);
+      } else if (c.stage === 'submitted') {
+        const succ = document.createElement('button');
+        succ.className = 'btn-primary'; succ.textContent = 'ปิดเคส: success';
+        succ.onclick = function () { promptScreenshot(c.claim_id, 'closed', div, 'success'); };
+
+        const fail = document.createElement('button');
+        fail.className = 'btn-neutral'; fail.textContent = 'ปิดเคส: fail';
+        fail.onclick = function () { promptScreenshot(c.claim_id, 'closed', div, 'fail'); };
+
+        acts.appendChild(succ); acts.appendChild(fail);
+      }
+      return div;
+    }
+
+    async function approveReturn(returnId, decision, itemEl) {
+      const confirmText = decision === 'accept_to_stock' ? 'รับเข้า Stock?'
+                        : decision === 'reject_bad' ? 'Reject (ไม่กระทบ Stock)?'
+                        : 'ส่งเคลม supplier?';
+      if (!confirm(returnId + '\n' + confirmText)) return;
+      disableButtons(itemEl);
+      try {
+        const res = await api.post('approveReturn', {
+          lineUserId: state.lineUserId, returnId: returnId, decision: decision,
+        });
+        flash(ui.ok, returnId + ' → ' + res.status);
+        await loadDashboard();
+      } catch (err) {
+        enableButtons(itemEl);
+        showError(ui.err, returnId + ': ' + (err.code || err.message) + (err.data && err.data.message ? ' — ' + err.data.message : ''));
+      }
+    }
+
+    async function approveCancel(cancelId, decision, itemEl) {
+      const confirmText = decision === 'accept' ? 'Accept (เข้า Stock +qty)?' : 'Reject?';
+      if (!confirm(cancelId + '\n' + confirmText)) return;
+      disableButtons(itemEl);
+      try {
+        const res = await api.post('approveCancel', {
+          lineUserId: state.lineUserId, cancelId: cancelId, decision: decision,
+        });
+        flash(ui.ok, cancelId + ' → ' + res.status);
+        await loadDashboard();
+      } catch (err) {
+        enableButtons(itemEl);
+        showError(ui.err, cancelId + ': ' + (err.code || err.message));
+      }
+    }
+
+    async function adjustStock(countId, deltaQty, itemEl) {
+      const reason = prompt('เหตุผลปรับยอด (เช่น "นับเทียบสัปดาห์ที่ 19"):', '') || '';
+      if (!confirm(countId + '\nปรับยอด ' + (deltaQty > 0 ? '+' : '') + deltaQty + ' ?')) return;
+      disableButtons(itemEl);
+      try {
+        const res = await api.post('adjustStock', {
+          lineUserId: state.lineUserId, countId: countId, deltaQty: deltaQty, reason: reason,
+        });
+        flash(ui.ok, countId + ' ปรับยอดแล้ว — Stock = ' + res.qty_after);
+        await loadDashboard();
+      } catch (err) {
+        enableButtons(itemEl);
+        showError(ui.err, countId + ': ' + (err.code || err.message));
+      }
+    }
+
+    function promptScreenshot(claimId, newStage, itemEl, closedResult) {
+      // open file picker → resize → base64 → upload
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = async function () {
+        const file = inp.files && inp.files[0];
+        if (!file) return;
+        disableButtons(itemEl);
+        try {
+          const b64 = await fileToB64Resized(file, 1280, 0.85);
+          const payload = {
+            lineUserId: state.lineUserId, claimId: claimId, newStage: newStage,
+            screenshot: b64,
+          };
+          if (closedResult) payload.closedResult = closedResult;
+          const res = await api.post('updateClaimStage', payload);
+          flash(ui.ok, claimId + ' → ' + res.stage);
+          await loadDashboard();
+        } catch (err) {
+          enableButtons(itemEl);
+          showError(ui.err, claimId + ': ' + (err.code || err.message));
+        }
+      };
+      inp.click();
+    }
+
+    function fileToB64Resized(file, maxW, q) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const ratio = Math.min(maxW / img.width, 1);
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * ratio);
+            c.height = Math.round(img.height * ratio);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/jpeg', q));
+          };
+          img.onerror = () => reject(new Error('bad image'));
+          img.src = r.result;
+        };
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      });
+    }
+
+    function disableButtons(el) { el.querySelectorAll('button').forEach(b => b.disabled = true); }
+    function enableButtons(el) { el.querySelectorAll('button').forEach(b => b.disabled = false); }
+
+    document.getElementById('reload-btn').addEventListener('click', loadDashboard);
+
+    document.getElementById('daily-btn').addEventListener('click', async function () {
+      this.disabled = true; this.textContent = 'กำลังส่ง...';
+      try {
+        const res = await api.post('getDailyReport', { lineUserId: state.lineUserId });
+        flash(ui.ok, 'รายวัน ' + res.date + ' — รับเข้า ' + (res.by_type && res.by_type.inbound || 0)
+          + ' / หยิบออก ' + (res.by_type && res.by_type.outbound || 0));
+      } catch (err) {
+        showError(ui.err, 'รายงานล้มเหลว: ' + (err.code || err.message));
+      } finally {
+        this.disabled = false; this.textContent = 'รายวัน (ส่ง LINE)';
+      }
+    });
+
+    document.getElementById('weekly-btn').addEventListener('click', async function () {
+      this.disabled = true; this.textContent = 'กำลังส่ง...';
+      try {
+        const res = await api.post('getWeeklyReport', { lineUserId: state.lineUserId });
+        flash(ui.ok, 'รายสัปดาห์ ' + res.week + ' — counts ' + (res.counts && res.counts.total || 0));
+      } catch (err) {
+        showError(ui.err, 'รายงานล้มเหลว: ' + (err.code || err.message));
+      } finally {
+        this.disabled = false; this.textContent = 'รายสัปดาห์ (ส่ง LINE)';
+      }
+    });
+
+    loadDashboard();
+  </script>
+</body>
+</html>

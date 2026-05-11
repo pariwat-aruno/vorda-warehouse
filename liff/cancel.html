@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ยกเลิกออเดอร์ — คลัง Vorda</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./img/logo.jpg" alt="VORDA SKINCARE" />
+    <div class="brand">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+    <h1>ยกเลิกออเดอร์</h1>
+    <div class="subtitle">ของไม่ถึงปลายทาง ตีกลับ (ไม่ได้แกะ)</div>
+
+    <div id="error" class="error" style="display:none"></div>
+
+    <div id="form-section">
+      <div class="warning-block">
+        ของยังไม่ได้แกะ — ไม่ต้อง VDO แต่ต้องมีรูปประกอบ
+      </div>
+
+      <div class="field">
+        <div class="label">เลข tracking</div>
+        <input id="tracking-input" type="text" placeholder="เช่น TH123456789" />
+      </div>
+
+      <div class="field">
+        <div class="label">สินค้า</div>
+        <select id="product-select"><option>กำลังโหลด...</option></select>
+      </div>
+
+      <div class="field">
+        <div class="label">จำนวน (ชิ้น)</div>
+        <input id="qty-input" type="number" inputmode="numeric" min="1" placeholder="0" />
+      </div>
+
+      <div class="label">ถ่ายรูปประกอบ (อย่างน้อย 1 รูป)</div>
+      <div class="camera-wrap">
+        <video id="camera-video" autoplay playsinline muted></video>
+      </div>
+      <div class="photo-grid">
+        <div class="photo-slot">รูป 1</div>
+        <div class="photo-slot">รูป 2</div>
+        <div class="photo-slot">รูป 3</div>
+        <div class="photo-slot">รูป 4</div>
+      </div>
+      <div id="photo-counter" class="photo-counter">ถ่ายแล้ว 0 / 4 (≥ 1 ก็พอ)</div>
+      <div class="row">
+        <button id="capture-btn" class="btn-primary" type="button">ถ่าย รูป 1</button>
+        <button id="retake-btn" class="btn-secondary" type="button">ลบ + ถ่ายใหม่</button>
+      </div>
+
+      <button id="submit-btn" class="btn-primary" type="button" style="margin-top:14px">บันทึก</button>
+    </div>
+
+    <div id="after-submit" style="display:none">
+      <div id="result-banner" class="success-banner"></div>
+
+      <div class="mov-id-box">
+        <div class="label-small">เลขใบ CXL</div>
+        <div id="result-id-text" class="id-text"></div>
+      </div>
+
+      <div id="undo-bar" class="undo-bar" style="display:none">
+        <div id="undo-text"></div>
+        <button id="undo-btn" type="button">ยกเลิกการบันทึก</button>
+      </div>
+
+      <button id="new-btn" class="btn-secondary" type="button" style="margin-top:12px">บันทึกรายการใหม่</button>
+    </div>
+  </div>
+
+  <div class="page-footer">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+    import { initAuth, state } from './js/auth.js';
+    import { api } from './js/api.js';
+    import { startCamera, captureFromVideoWithStamp, stopCamera } from './js/camera.js';
+    import { showError, clearError } from './js/utils.js';
+
+    const ui = {
+      err: document.getElementById('error'),
+      tracking: document.getElementById('tracking-input'),
+      productSel: document.getElementById('product-select'),
+      qty: document.getElementById('qty-input'),
+      camVid: document.getElementById('camera-video'),
+      grid: document.querySelector('.photo-grid'),
+      counter: document.getElementById('photo-counter'),
+      captureBtn: document.getElementById('capture-btn'),
+      retakeBtn: document.getElementById('retake-btn'),
+      submitBtn: document.getElementById('submit-btn'),
+      formSec: document.getElementById('form-section'),
+      afterSubmit: document.getElementById('after-submit'),
+      resultBanner: document.getElementById('result-banner'),
+      resultIdText: document.getElementById('result-id-text'),
+      undoBar: document.getElementById('undo-bar'),
+      undoText: document.getElementById('undo-text'),
+      undoBtn: document.getElementById('undo-btn'),
+      newBtn: document.getElementById('new-btn'),
+    };
+
+    const photos = [];
+    let stream = null;
+
+    try {
+      await initAuth(CONFIG.LIFF_ID_CANCEL);
+    } catch (err) {
+      showError(ui.err, 'LIFF init ไม่สำเร็จ: ' + err.message);
+    }
+
+    try {
+      const res = await api.post('getProducts', { lineUserId: state.lineUserId });
+      ui.productSel.innerHTML = '<option value="">— เลือกสินค้า —</option>';
+      (res.products || []).forEach(function (p) {
+        const opt = document.createElement('option');
+        opt.value = p.product_id;
+        opt.textContent = p.product_name + ' (คงเหลือ ' + p.qty_on_hand + ' ' + (p.unit || 'ชิ้น') + ')';
+        ui.productSel.appendChild(opt);
+      });
+    } catch (err) {
+      showError(ui.err, 'โหลดสินค้าไม่ได้: ' + (err.code || err.message));
+    }
+
+    try {
+      stream = await startCamera(ui.camVid, 'environment');
+    } catch (err) {
+      showError(ui.err, 'เปิดกล้องไม่ได้: ' + err.message);
+    }
+
+    function renderPhotos() {
+      const slots = ui.grid.querySelectorAll('.photo-slot');
+      slots.forEach(function (slot, i) {
+        slot.innerHTML = '';
+        slot.classList.remove('filled');
+        if (photos[i]) {
+          const img = document.createElement('img');
+          img.src = photos[i];
+          slot.appendChild(img);
+          slot.classList.add('filled');
+        } else {
+          slot.textContent = 'รูป ' + (i + 1);
+        }
+      });
+      ui.counter.textContent = 'ถ่ายแล้ว ' + photos.length + ' / 4 (≥ 1 ก็พอ)';
+      ui.captureBtn.disabled = photos.length >= 4;
+      ui.captureBtn.textContent = photos.length >= 4 ? 'ครบ 4 รูปแล้ว' : ('ถ่าย รูป ' + (photos.length + 1));
+    }
+    renderPhotos();
+
+    ui.captureBtn.addEventListener('click', function () {
+      if (photos.length >= 4) return;
+      clearError(ui.err);
+      try {
+        const b64 = captureFromVideoWithStamp(ui.camVid, 'ยกเลิก ' + (photos.length + 1));
+        photos.push(b64);
+        renderPhotos();
+      } catch (err) {
+        showError(ui.err, 'ถ่ายไม่สำเร็จ: ' + err.message);
+      }
+    });
+    ui.retakeBtn.addEventListener('click', function () { photos.length = 0; renderPhotos(); });
+
+    ui.submitBtn.addEventListener('click', async function () {
+      clearError(ui.err);
+      const trackingNumber = ui.tracking.value.trim();
+      const productId = ui.productSel.value;
+      const qty = Number(ui.qty.value);
+      if (!trackingNumber) return showError(ui.err, 'ใส่เลข tracking ก่อน');
+      if (!productId) return showError(ui.err, 'เลือกสินค้าก่อน');
+      if (!qty || qty <= 0 || qty !== Math.floor(qty)) return showError(ui.err, 'จำนวนต้องเป็นจำนวนเต็มบวก');
+      if (photos.length < 1) return showError(ui.err, 'ถ่ายรูปอย่างน้อย 1 รูป');
+
+      ui.submitBtn.disabled = true;
+      ui.submitBtn.textContent = 'กำลังบันทึก...';
+      try {
+        const res = await api.post('submitCancel', {
+          lineUserId: state.lineUserId,
+          name: state.profile && state.profile.displayName || '',
+          trackingNumber: trackingNumber,
+          productId: productId,
+          qty: qty,
+          photos: photos.slice(),
+        });
+        stopCamera(stream); stream = null;
+        ui.formSec.style.display = 'none';
+        ui.afterSubmit.style.display = 'block';
+        ui.resultBanner.className = 'success-banner';
+        ui.resultBanner.textContent = 'บันทึก ยกเลิกออเดอร์ สำเร็จ — รอเจ้าของ approve';
+        ui.resultIdText.textContent = res.cancelId;
+        startUndo(res.cancelId);
+      } catch (err) {
+        ui.submitBtn.disabled = false;
+        ui.submitBtn.textContent = 'บันทึก';
+        showError(ui.err, 'บันทึกไม่ได้: ' + (err.code || err.message)
+          + (err.data && err.data.message ? ' — ' + err.data.message : ''));
+      }
+    });
+
+    function startUndo(recordId) {
+      const windowSec = CONFIG.CANCEL_WINDOW_SECONDS || 300;
+      const exp = Date.now() + windowSec * 1000;
+      ui.undoBar.style.display = 'block';
+      const timer = setInterval(tick, 1000);
+      tick();
+      function tick() {
+        const remaining = Math.max(0, Math.round((exp - Date.now()) / 1000));
+        const mm = Math.floor(remaining / 60), ss = remaining % 60;
+        ui.undoText.textContent = 'ยกเลิกได้อีก ' + mm + ':' + (ss < 10 ? '0' : '') + ss;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          ui.undoBar.classList.add('expired');
+          ui.undoText.textContent = 'หมดเวลายกเลิก';
+          ui.undoBtn.style.display = 'none';
+        }
+      }
+      ui.undoBtn.onclick = async function () {
+        if (Date.now() >= exp) return;
+        const reason = prompt('เหตุผล (optional):') || '';
+        ui.undoBtn.disabled = true;
+        try {
+          await api.post('cancelSubmission', {
+            lineUserId: state.lineUserId, recordType: 'cancel',
+            recordId: recordId, reason: reason,
+          });
+          clearInterval(timer);
+          ui.undoBar.classList.add('expired');
+          ui.undoText.textContent = 'ยกเลิกแล้ว';
+          ui.undoBtn.style.display = 'none';
+        } catch (err) {
+          ui.undoBtn.disabled = false;
+          showError(ui.err, 'ยกเลิกไม่สำเร็จ: ' + (err.code || err.message));
+        }
+      };
+    }
+
+    ui.newBtn.addEventListener('click', function () { location.reload(); });
+  </script>
+</body>
+</html>

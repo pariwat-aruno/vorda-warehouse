@@ -204,6 +204,195 @@ button {
 .status.รอจ่าย   { background: #fef3c7; color: var(--warning); }
 .status.จ่ายแล้ว { background: var(--cherry-tint); color: var(--cherry-dark); }
 
+/* ===== Menu grid (index.html) ===== */
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.menu-btn {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px;
+  padding: 22px 12px;
+  background: var(--white); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  text-decoration: none;
+  font-size: 14px; font-weight: 600;
+  transition: background 0.15s ease;
+}
+.menu-btn:active { background: var(--cherry-tint); border-color: var(--cherry); }
+.menu-btn .menu-icon {
+  font-size: 28px; font-weight: 700;
+  color: var(--cherry);
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--cherry-tint);
+}
+.menu-btn .menu-sub { font-size: 11px; color: var(--muted); font-weight: 400; }
+.menu-btn.owner-only {
+  background: var(--reject); color: var(--white); border-color: var(--reject);
+}
+.menu-btn.owner-only .menu-icon {
+  background: rgba(255,255,255,0.12); color: var(--white);
+}
+.menu-btn.owner-only .menu-sub { color: rgba(255,255,255,0.7); }
+
+/* ===== Form layout helpers ===== */
+.row { display: flex; gap: 10px; align-items: center; }
+.row > * { flex: 1; }
+
+textarea {
+  width: 100%; padding: 12px;
+  font-size: 15px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--white); color: var(--text);
+  margin-bottom: 14px;
+  min-height: 80px;
+  resize: vertical;
+}
+textarea:focus { outline: none; border-color: var(--cherry); box-shadow: 0 0 0 3px rgba(200,16,46,0.12); }
+
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 20px; height: 20px;
+  accent-color: var(--cherry);
+}
+.checkbox-row label { font-size: 14px; cursor: pointer; }
+
+/* ===== Round toggle (รอบ 1 / รอบ 2) ===== */
+.round-toggle {
+  display: flex; background: var(--bg);
+  border-radius: 8px; padding: 4px;
+  margin-bottom: 16px;
+}
+.round-toggle button {
+  flex: 1; padding: 10px; border-radius: 6px;
+  font-size: 14px; font-weight: 600;
+  background: transparent; color: var(--muted);
+  border: none;
+}
+.round-toggle button.active {
+  background: var(--white); color: var(--cherry);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+/* ===== Camera + photo grid ===== */
+.camera-wrap {
+  position: relative;
+  background: #000; border-radius: 10px;
+  overflow: hidden; aspect-ratio: 1;
+  margin-bottom: 12px;
+}
+.camera-wrap video {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.photo-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px; margin-bottom: 14px;
+}
+.photo-slot {
+  aspect-ratio: 1;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--muted);
+  overflow: hidden; position: relative;
+}
+.photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+.photo-slot.filled { border-style: solid; border-color: var(--cherry); }
+.photo-counter {
+  text-align: center; font-size: 12px;
+  color: var(--muted); margin-bottom: 12px;
+}
+
+/* ===== Movement ID display ===== */
+.mov-id-box {
+  background: var(--cherry-tint);
+  border: 2px solid var(--cherry);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.mov-id-box .label-small {
+  font-size: 11px; color: var(--cherry-dark);
+  text-transform: uppercase; letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+.mov-id-box .id-text {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 18px; font-weight: 700;
+  color: var(--cherry-dark);
+  word-break: break-all;
+}
+
+/* ===== Undo countdown ===== */
+.undo-bar {
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--bg); border: 1px dashed var(--cherry);
+  border-radius: 8px; text-align: center;
+  font-size: 13px;
+}
+.undo-bar button {
+  margin-top: 8px;
+  background: var(--reject); color: #fff;
+}
+.undo-bar.expired { opacity: 0.5; border-style: solid; }
+
+/* ===== Owner dashboard ===== */
+.dash-section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.dash-section h2 {
+  font-size: 14px; margin: 0 0 10px;
+  color: var(--cherry); text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.dash-section .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 12px 0; }
+.dash-item {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+  font-size: 14px;
+}
+.dash-item:first-of-type { border-top: none; }
+.dash-item .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.dash-item .actions { display: flex; gap: 6px; margin-top: 8px; }
+.dash-item .actions button {
+  padding: 8px 10px; font-size: 12px; width: auto; flex: 1;
+}
+
+.stock-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.stock-table th, .stock-table td {
+  padding: 8px 4px; border-bottom: 1px solid var(--border); text-align: left;
+}
+.stock-table th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stock-table td.qty { text-align: right; font-weight: 700; color: var(--cherry); font-family: "SF Mono", Menlo, monospace; }
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 16px;
+}
+.modal-card {
+  background: var(--white); border-radius: 12px;
+  padding: 20px; max-width: 360px; width: 100%;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-card h3 { margin: 0 0 12px; font-size: 16px; color: var(--cherry); }
+
 /* ===== Footer brand (ทุก page) ===== */
 .page-footer {
   text-align: center; margin-top: 20px;

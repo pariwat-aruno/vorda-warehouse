@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>คลัง Vorda — เลือกเมนู</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./img/logo.jpg" alt="VORDA SKINCARE" />
+    <div class="brand">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+    <h1>ระบบคลังสินค้า</h1>
+    <div class="subtitle">เลือกเมนูที่ต้องการ</div>
+
+    <div id="error" class="error" style="display:none"></div>
+
+    <div class="menu-grid">
+      <a class="menu-btn" href="./inbound.html">
+        <div class="menu-icon">+</div>
+        <div>รับเข้า</div>
+        <div class="menu-sub">จากโรงงาน</div>
+      </a>
+      <a class="menu-btn" href="./outbound.html">
+        <div class="menu-icon">−</div>
+        <div>หยิบออก</div>
+        <div class="menu-sub">ไปแพคส่ง</div>
+      </a>
+      <a class="menu-btn" href="./count.html">
+        <div class="menu-icon">=</div>
+        <div>นับเทียบ</div>
+        <div class="menu-sub">สัปดาห์ละครั้ง</div>
+      </a>
+      <a class="menu-btn" href="./adjust.html">
+        <div class="menu-icon">×</div>
+        <div>ตัดสต๊อก</div>
+        <div class="menu-sub">ของเสีย/แตก</div>
+      </a>
+      <a class="menu-btn" href="./return.html">
+        <div class="menu-icon">↩</div>
+        <div>ตีคืน</div>
+        <div class="menu-sub">มีถ่าย VDO</div>
+      </a>
+      <a class="menu-btn" href="./cancel.html">
+        <div class="menu-icon">⌀</div>
+        <div>ยกเลิก</div>
+        <div class="menu-sub">ของไม่ถึง</div>
+      </a>
+    </div>
+
+    <a id="owner-btn" class="menu-btn owner-only" href="./owner.html" style="display:none">
+      <div class="menu-icon">★</div>
+      <div>เมนูเจ้าของ</div>
+      <div class="menu-sub">approve + ปรับยอด + รายงาน</div>
+    </a>
+  </div>
+
+  <div class="page-footer">บริษัท วอร์ด้า สกินแคร์ จำกัด</div>
+
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+    import { initAuth, state } from './js/auth.js';
+    import { api } from './js/api.js';
+
+    const errEl = document.getElementById('error');
+    const ownerBtn = document.getElementById('owner-btn');
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+
+    async function init() {
+      try {
+        await initAuth(CONFIG.LIFF_ID_INBOUND); // ใช้ inbound LIFF เป็น default
+        // ลอง getOwnerDashboard — ถ้า ok แสดงปุ่ม
+        try {
+          await api.post('getOwnerDashboard', { lineUserId: state.lineUserId });
+          ownerBtn.style.display = 'flex';
+        } catch (e) {
+          // not_owner → ซ่อนปุ่ม (default)
+        }
+      } catch (err) {
+        showError('เปิดระบบไม่ได้: ' + (err && err.message ? err.message : err));
+      }
+    }
+    init();
+  </script>
+</body>
+</html>

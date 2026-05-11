@@ -272,53 +272,42 @@
 ## Phase 5 — LIFF frontend
 
 ### TASK-23: liff/index.html — landing
-- [ ] หน้าแรกหลังเปิด rich menu
-- [ ] แสดง 6 ปุ่มหลัก (รับเข้า / หยิบออก / นับเทียบ / ตัดสต๊อก / ตีคืน / ยกเลิก)
-- [ ] แต่ละปุ่ม: `liff.openWindow({ url: '<page>.html', external: false })` หรือ link ตรง
-- [ ] ปุ่มเจ้าของโผล่เฉพาะ owner/supervisor (เช็คผ่าน API getOwnerDashboard ถ้า ok=true)
+- [x] หน้าแรกหลังเปิด rich menu
+- [x] แสดง 6 ปุ่มหลัก (รับเข้า / หยิบออก / นับเทียบ / ตัดสต๊อก / ตีคืน / ยกเลิก)
+- [x] แต่ละปุ่ม: anchor link ตรงไป <page>.html
+- [x] ปุ่มเจ้าของโผล่เฉพาะ owner (เช็คผ่าน getOwnerDashboard — ok=true แสดง)
 
-### TASK-24: liff/inbound.html
-- [ ] init LIFF (LIFF_ID_INBOUND) + getProfile
-- [ ] เรียก `getProducts` → fill dropdown
-- [ ] form: เลือกสินค้า + กรอก qty + ถ่ายรูป 4 มุม (กล้อง getUserMedia)
-- [ ] toggle "รอบที่ 1" หรือ "รอบที่ 2 + ใส่ MOV-...":
-  - รอบ 1: submit แสดง movement_id + ปุ่ม "คัดลอก ID"
-  - รอบ 2: input MOV-... → submit ส่ง pairingMovementId
-- [ ] หลัง submit: แสดงปุ่ม "ยกเลิกการบันทึก" countdown 5 นาที
-- [ ] ทุก field validate ก่อน submit
-
-### TASK-25: liff/outbound.html
-- [ ] copy จาก inbound + เปลี่ยน LIFF_ID + action='submitOutbound'
-
-### TASK-26: liff/count.html
-- [ ] เหมือน inbound แต่ action='submitCount' + label "นับเทียบ"
-
-### TASK-27: liff/adjust.html
-- [ ] inbound + เพิ่ม textarea reason
+### TASK-24..27: liff/{inbound,outbound,count,adjust}.html
+- [x] **Shared:** `liff/js/movementForm.js` — auth + getProducts dropdown + round toggle + photo capture (4 รูป) + submit + undo countdown
+- [x] inbound.html: action=submitInbound, idPrefix=MOV-, no reason
+- [x] outbound.html: action=submitOutbound, idPrefix=MOV-, no reason
+- [x] count.html: action=submitCount, idPrefix=CNT-, allowZeroQty (ของหมดได้)
+- [x] adjust.html: action=submitAdjust, idPrefix=MOV-, hasReason=true (textarea)
+- [x] หลัง submit แสดง movement_id + ปุ่มคัดลอก + countdown 5 นาที + ปุ่มยกเลิก
 
 ### TASK-28: liff/return.html (ซับซ้อนสุด — มี VDO)
-- [ ] form: tracking + เลือกสินค้า + qty + checkbox "เป็นสินค้าของเรา?"
-- [ ] dropdown สภาพ (ดี / ไม่ดี)
-- [ ] **VDO recorder:** MediaRecorder API, max 30s, encode webm/mp4
-- [ ] preview VDO + ปุ่มถ่ายใหม่
-- [ ] รูปประกอบ (optional)
-- [ ] submit → action='submitReturn'
+- [x] form: tracking + checkbox "เป็นสินค้าของเรา?" + (ถ้าใช่: dropdown + qty + radio condition / ถ้าไม่ใช่: textbox ชื่อสินค้า + qty)
+- [x] **VDO recorder:** MediaRecorder API, picks mp4/webm by isTypeSupported, max 30s (auto-stop)
+- [x] preview VDO + ปุ่มอัดใหม่
+- [x] submit → action='submitReturn' (videoBase64 required, photos[] empty for v1)
+- [x] หลัง submit: undo bar 5 นาที (recordType='return')
 
 ### TASK-29: liff/cancel.html
-- [ ] form: tracking + สินค้า + qty + รูป
-- [ ] simple — ไม่มี VDO ไม่มี double-blind
-- [ ] submit → action='submitCancel'
+- [x] form: tracking + สินค้า + qty + รูปอย่างน้อย 1 (max 4)
+- [x] no VDO, no double-blind
+- [x] submit → action='submitCancel' + undo bar 5 นาที (recordType='cancel')
 
 ### TASK-30: liff/owner.html (owner LIFF)
-- [ ] init + เรียก getOwnerDashboard
-- [ ] ถ้า return error='not_owner' → แสดง "คุณไม่มีสิทธิ์เข้าถึง"
-- [ ] section 1: ยอดสต๊อก 5 SKU
-- [ ] section 2: ตีคืนรอ approve — ดู VDO + ปุ่ม accept_to_stock / reject_bad / forward_to_claim
-- [ ] section 3: ยกเลิกรอ approve — ปุ่ม accept / reject
-- [ ] section 4: count variance รอปรับยอด — ปุ่ม "ปรับยอดให้ตรง" / "ไม่ปรับยอด"
-- [ ] section 5: Claims ค้าง — ปุ่ม update stage
-- [ ] section 6: report ปุ่มดู daily / weekly
-- **Acceptance:** ทุก action submit แล้ว update dashboard ทันที
+- [x] init + เรียก getOwnerDashboard
+- [x] ถ้า error='not_owner' → แสดง "คุณไม่มีสิทธิ์เข้าถึง"
+- [x] section 1: ยอดสต๊อก (table)
+- [x] section 2: ตีคืนรอ approve — VDO link + 3 ปุ่ม (accept_to_stock disabled ถ้า bad / ไม่ใช่ของเรา)
+- [x] section 3: ยกเลิกรอ approve — 2 ปุ่ม (accept / reject)
+- [x] section 4: count variance — ปุ่ม "ปรับยอดให้ตรง (+/-N)"
+- [x] section 5: Claims open — ปุ่ม update stage (file picker → resize → base64)
+- [x] section 6: รายงาน daily / weekly (preview ข้อความ)
+- [x] ทุก action: confirm → API → reload dashboard
+- **Acceptance:** ⏳ test end-to-end (TASK-35)
 
 ---
 
