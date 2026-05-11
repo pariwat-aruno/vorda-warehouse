@@ -91,10 +91,11 @@
   - cancel:   `2010039913-qn27hLz0`
   - owner:    `2010039913-nqodMLew`
 
-### TASK-06: เก็บ owner + supervisor LINE userId
-- [ ] เปิด `liff/myid.html` ผ่าน LIFF inbound (หรือ LIFF ใดก็ได้ — myid ไม่ต้องสร้าง LIFF แยก)
-- [ ] ให้ owner 2 คน + supervisor 1 คน เปิดและ copy userId
-- [ ] ใส่ Sheet `Config`:
+### TASK-06: เก็บ owner + supervisor LINE userId — **DEFERRED**
+> Deferred to after Phase 5 — จะทำ get-userid flow ผ่าน bot follow event + dedicated LIFF page หลัง deploy
+- [ ] (later) เปิด `liff/myid.html` ผ่าน LIFF inbound หรือใช้ bot follow event auto-reply userId
+- [ ] (later) ให้ owner 2 คน + supervisor 1 คน เปิดและ copy userId
+- [ ] (later) ใส่ Sheet `Config`:
   - row `owner_line_user_ids` = `Uxxx,Uyyy`
   - row `supervisor_line_user_ids` = `Uzzz`
 - **Acceptance:** isOwner('Uxxx') === true, isSupervisor('Uzzz') === true
@@ -103,10 +104,11 @@
 
 ## Phase 3 — Apps Script foundation (มีไฟล์แล้ว)
 
-### TASK-07: ตรวจ foundation ทำงาน
-- [ ] รัน `getConfig()` ใน Apps Script editor
-- [ ] ไม่มี error → return object มี SHEET_ID + LIFF_IDs + OWNER_LINE_USER_IDS
-- [ ] รัน `pushToAllOwners(['ทดสอบ push'])` → owner ได้ข้อความใน LINE
+### TASK-07: ตรวจ foundation ทำงาน — **DEFERRED**
+> blocked โดย TASK-06 (ต้องมี owner userId ก่อนถึงทดสอบ pushToAllOwners ได้)
+- [ ] (later) รัน `getConfig()` ใน Apps Script editor
+- [ ] (later) ไม่มี error → return object มี SHEET_ID + LIFF_IDs + OWNER_LINE_USER_IDS
+- [ ] (later) รัน `pushToAllOwners(['ทดสอบ push'])` → owner ได้ข้อความใน LINE
 - **Acceptance:** ผ่าน 2 อย่างข้างบน
 
 ---
@@ -114,11 +116,13 @@
 ## Phase 4 — Apps Script endpoints (Implement TODOs)
 
 ### TASK-08: Submission.gs::handleCancelSubmission
-- [ ] รับ payload: `{ lineUserId, recordType, recordId, reason }`
-- [ ] เช็ค: row นี้มีจริง + lineUserId เป็น submitter1 หรือ submitter2 เอง + status ยัง pending_* + อยู่ใน window 5 นาที
-- [ ] update row: `status='cancelled', cancel_at, cancel_reason`
-- [ ] log info
-- **Acceptance:** test ผ่าน LIFF (submit แล้ว undo ได้, ครบ 5 นาทีกดไม่ได้, คนอื่นกดของเราไม่ได้)
+- [x] รับ payload: `{ lineUserId, recordType, recordId, reason }`
+- [x] เช็ค: row นี้มีจริง + lineUserId เป็น submitter1 หรือ submitter2 เอง + status ยัง pending_* + อยู่ใน window 5 นาที
+- [x] update row: `status='cancelled', cancel_at, cancel_reason`
+- [x] log info + dedup กัน double-tap
+- [x] รองรับ 4 recordType: movement / count / return / cancel (return/cancel ใช้ staff_*)
+- **Acceptance:** test ผ่าน LIFF (submit แล้ว undo ได้, ครบ 5 นาทีกดไม่ได้, คนอื่นกดของเราไม่ได้) — ⏳ test ทีหลังตอน LIFF พร้อม
+- **Implemented errors:** missing_params, unknown_record_type, duplicate_request, not_found, not_pending, not_owner_of_submission, cancel_window_expired, invalid_submit_time, server_error
 
 ### TASK-09: Inbound.gs::handleSubmitInbound
 - [ ] dedup ผ่าน `dedupRecentSubmission_('inbound:' + lineUserId, 5)`
