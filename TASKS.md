@@ -167,12 +167,15 @@
 - **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-13: Count.gs::handleSupervisorTiebreaker
-- [ ] เช็ค `isSupervisor(lineUserId)` ก่อน
-- [ ] รับ recordType + recordId + qty
-- [ ] update supervisor_*, final_qty (= supervisor_qty), status
-- [ ] ถ้าเป็น count → continue logic เช็ค variance (เหมือน TASK-12)
-- [ ] ถ้าเป็น movement → apply Stock + status=confirmed
-- **Acceptance:** หัวหน้าตัดสินแล้ว flow ต่อถูกต้อง
+- [x] เช็ค `isSupervisor(lineUserId)` ก่อน (return not_supervisor ถ้าไม่ผ่าน)
+- [x] รับ recordType + recordId + qty (+ optional photos)
+- [x] update supervisor_user_id/name/qty/at, photos append
+- [x] **movement:** apply Stock ตาม movement_type (inbound=+, outbound/adjust=-) → status='confirmed' + push managers
+  - pre-check stock พอไหม (สำหรับ outbound/adjust)
+- [x] **count:** final_qty = supervisor_qty → variance = final_qty - system_qty
+  - variance == 0 → status='no_action' + push managers
+  - variance != 0 → status='awaiting_owner' + push owner
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-14: Adjust.gs::handleAdjustStock (owner-initiated)
 - [ ] เช็ค `isOwner(lineUserId)`

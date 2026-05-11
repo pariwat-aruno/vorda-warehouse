@@ -241,7 +241,255 @@ function _handleCountRound2_(lineUserId, name, productId, qty, photos, pairingCo
 // SUPERVISOR TIEBREAKER (TASK-13) — implement ทีหลัง
 // =====================================================================
 
+/**
+ * หัวหน้าคลังตัดสินกรณี double-blind นับไม่ตรง
+ *
+ * payload: { lineUserId, name, recordType: 'movement'|'count', recordId, qty, photos?: [base64] }
+ *   - recordType='movement' → ใช้ Movements (inbound/outbound/adjust ใดก็ได้)
+ *   - recordType='count' → ใช้ Counts
+ *   - status ต้องเป็น 'pending_supervisor'
+ *   - photos optional — append เข้า photo_urls เดิม
+ *
+ * effect:
+ *   - movement: apply Stock ตาม movement_type + status='confirmed'
+ *   - count: compute variance → no_action (==0) หรือ awaiting_owner (!=0)
+ *
+ * error codes:
+ *   missing_params, not_supervisor, unknown_record_type, not_found,
+ *   not_pending_supervisor, qty_invalid, insufficient_stock,
+ *   unknown_movement_type, server_error
+ */
 function handleSupervisorTiebreaker(payload) {
-  // payload: { lineUserId, name, recordType, recordId, qty, photos[4]? }
-  return { ok: false, error: 'not_implemented', action: 'submitSupervisorTiebreaker' };
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const name = payload.name || '';
+  const recordType = payload.recordType;
+  const recordId = payload.recordId;
+  const qty = Number(payload.qty);
+  const photos = payload.photos || [];
+
+  if (!lineUserId || !recordType || !recordId || payload.qty == null) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'recordType', 'recordId', 'qty'] };
+  }
+  if (!isSupervisor(lineUserId)) {
+    return { ok: false, error: 'not_supervisor' };
+  }
+  if (recordType !== 'movement' && recordType !== 'count') {
+    return { ok: false, error: 'unknown_record_type', recordType: recordType };
+  }
+  if (!isFinite(qty) || qty < 0 || qty !== Math.floor(qty)) {
+    return { ok: false, error: 'qty_invalid', message: 'qty ต้องเป็นจำนวนเต็มไม่ติดลบ' };
+  }
+  if (recordType === 'movement' && qty <= 0) {
+    return { ok: false, error: 'qty_invalid', message: 'movement qty ต้อง > 0' };
+  }
+
+  const dedupKey = 'tiebreaker:' + lineUserId + ':' + recordType + ':' + recordId;
+  if (!dedupRecentSubmission_(dedupKey, 5)) {
+    return { ok: false, error: 'duplicate_request' };
+  }
+
+  try {
+    autoRegisterStaff_(lineUserId, name);
+    if (recordType === 'movement') {
+      return _tiebreakerMovement_(lineUserId, name, recordId, qty, photos);
+    }
+    return _tiebreakerCount_(lineUserId, name, recordId, qty, photos);
+  } catch (err) {
+    logError('handleSupervisorTiebreaker', err.message, { recordType: recordType, recordId: recordId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+function _tiebreakerMovement_(lineUserId, name, movementId, qty, photos) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Movements');
+  const rowIdx = findRowByIdCol_(sh, 'movement_id', movementId);
+  if (rowIdx < 0) return { ok: false, error: 'not_found', recordId: movementId };
+
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const row = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
+
+  const status = String(row[headers.indexOf('status')] || '');
+  if (status !== 'pending_supervisor') {
+    return { ok: false, error: 'not_pending_supervisor', currentStatus: status };
+  }
+
+  const movementType = String(row[headers.indexOf('movement_type')] || '');
+  const productId = String(row[headers.indexOf('product_id')] || '');
+  const productName = String(row[headers.indexOf('product_name')] || productId);
+  const reason = String(row[headers.indexOf('reason')] || '');
+
+  // กำหนด delta จาก movement_type
+  let delta;
+  let typeLabel;
+  if (movementType === 'inbound') {
+    delta = +qty;
+    typeLabel = 'รับเข้า';
+  } else if (movementType === 'outbound') {
+    delta = -qty;
+    typeLabel = 'หยิบออก';
+  } else if (movementType === 'adjust') {
+    delta = -qty;
+    typeLabel = 'ตัดสต๊อก';
+  } else {
+    return { ok: false, error: 'unknown_movement_type', movementType: movementType };
+  }
+
+  // pre-check stock สำหรับ delta ลบ
+  if (delta < 0) {
+    const stockNow = readStockQty_(productId);
+    if (stockNow + delta < 0) {
+      return {
+        ok: false,
+        error: 'insufficient_stock',
+        movementId: movementId,
+        qty_on_hand: stockNow,
+        requested: qty,
+      };
+    }
+  }
+
+  // upload photos (ถ้ามี) — append ต่อ photo_urls เดิม
+  const photoIdx = headers.indexOf('photo_urls');
+  if (Array.isArray(photos) && photos.length > 0) {
+    const subfolder = movementType === 'inbound' ? 'inbound'
+      : movementType === 'outbound' ? 'outbound' : 'adjust';
+    const urls = uploadImages(photos, movementId + '-sv', subfolder);
+    const existing = String(row[photoIdx] || '');
+    const combined = existing ? (existing + ',' + urls.join(',')) : urls.join(',');
+    sh.getRange(rowIdx, photoIdx + 1).setValue(combined);
+  }
+
+  const now = nowBangkok();
+  sh.getRange(rowIdx, headers.indexOf('supervisor_user_id') + 1).setValue(lineUserId);
+  sh.getRange(rowIdx, headers.indexOf('supervisor_name') + 1).setValue(name);
+  sh.getRange(rowIdx, headers.indexOf('supervisor_qty') + 1).setValue(qty);
+  sh.getRange(rowIdx, headers.indexOf('supervisor_at') + 1).setValue(now);
+
+  // apply Stock
+  const stock = applyStockDelta_(productId, delta, movementId);
+
+  sh.getRange(rowIdx, headers.indexOf('qty') + 1).setValue(delta);
+  sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('confirmed');
+  sh.getRange(rowIdx, headers.indexOf('confirmed_at') + 1).setValue(now);
+
+  logInfo('handleSupervisorTiebreaker', 'movement resolved', {
+    movementId: movementId, movementType: movementType, supervisor: lineUserId,
+    qty: qty, stock_before: stock.qty_before, stock_after: stock.qty_after,
+  });
+
+  safePushToAllManagers_([{
+    type: 'text',
+    text:
+      typeLabel + ' (หัวหน้าตัดสิน)\n' +
+      'รหัส: ' + movementId + '\n' +
+      'สินค้า: ' + productName + '\n' +
+      'จำนวน: ' + (delta > 0 ? '+' : '') + delta + ' ชิ้น\n' +
+      (reason ? 'เหตุผล: ' + reason + '\n' : '') +
+      'ยอดคงเหลือ: ' + stock.qty_after + '\n' +
+      'ตัดสินโดย: ' + name,
+  }], 'handleSupervisorTiebreaker');
+
+  return {
+    ok: true,
+    recordType: 'movement',
+    movementId: movementId,
+    movementType: movementType,
+    status: 'confirmed',
+    supervisor_qty: qty,
+    qty_applied: delta,
+    qty_before: stock.qty_before,
+    qty_after: stock.qty_after,
+  };
+}
+
+function _tiebreakerCount_(lineUserId, name, countId, qty, photos) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Counts');
+  const rowIdx = findRowByIdCol_(sh, 'count_id', countId);
+  if (rowIdx < 0) return { ok: false, error: 'not_found', recordId: countId };
+
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const row = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
+
+  const status = String(row[headers.indexOf('status')] || '');
+  if (status !== 'pending_supervisor') {
+    return { ok: false, error: 'not_pending_supervisor', currentStatus: status };
+  }
+
+  const productName = String(row[headers.indexOf('product_name')] || '');
+  const systemQty = Number(row[headers.indexOf('system_qty')] || 0);
+
+  const photoIdx = headers.indexOf('photo_urls');
+  if (Array.isArray(photos) && photos.length > 0) {
+    const urls = uploadImages(photos, countId + '-sv', 'count');
+    const existing = String(row[photoIdx] || '');
+    const combined = existing ? (existing + ',' + urls.join(',')) : urls.join(',');
+    sh.getRange(rowIdx, photoIdx + 1).setValue(combined);
+  }
+
+  const now = nowBangkok();
+  sh.getRange(rowIdx, headers.indexOf('supervisor_user_id') + 1).setValue(lineUserId);
+  sh.getRange(rowIdx, headers.indexOf('supervisor_name') + 1).setValue(name);
+  sh.getRange(rowIdx, headers.indexOf('supervisor_qty') + 1).setValue(qty);
+  sh.getRange(rowIdx, headers.indexOf('supervisor_at') + 1).setValue(now);
+
+  const finalQty = qty;
+  const variance = finalQty - systemQty;
+  sh.getRange(rowIdx, headers.indexOf('final_qty') + 1).setValue(finalQty);
+  sh.getRange(rowIdx, headers.indexOf('variance') + 1).setValue(variance);
+
+  if (variance === 0) {
+    sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('no_action');
+    logInfo('handleSupervisorTiebreaker', 'count resolved no_action', {
+      countId: countId, supervisor: lineUserId, final_qty: finalQty, system_qty: systemQty,
+    });
+    safePushToAllManagers_([{
+      type: 'text',
+      text:
+        'นับเทียบ ตรงระบบ (หัวหน้าตัดสิน)\n' +
+        'รหัส: ' + countId + '\n' +
+        'สินค้า: ' + productName + '\n' +
+        'ยอดในระบบ = ยอดนับ = ' + finalQty + '\n' +
+        'ตัดสินโดย: ' + name,
+    }], 'handleSupervisorTiebreaker');
+    return {
+      ok: true,
+      recordType: 'count',
+      countId: countId,
+      status: 'no_action',
+      system_qty: systemQty,
+      final_qty: finalQty,
+      variance: 0,
+    };
+  }
+
+  sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('awaiting_owner');
+  logWarn('handleSupervisorTiebreaker', 'count resolved awaiting_owner', {
+    countId: countId, final_qty: finalQty, system_qty: systemQty, variance: variance,
+  });
+  const varianceStr = (variance > 0 ? '+' : '') + variance;
+  safePushToAllOwners_([{
+    type: 'text',
+    text:
+      '⚠️ นับเทียบไม่ตรงระบบ (หัวหน้าตัดสิน) — รอปรับยอด\n' +
+      'รหัส: ' + countId + '\n' +
+      'สินค้า: ' + productName + '\n' +
+      'ยอดในระบบ: ' + systemQty + '\n' +
+      'ยอดนับจริง: ' + finalQty + '\n' +
+      'ส่วนต่าง: ' + varianceStr + '\n' +
+      'ตัดสินโดย: ' + name + '\n' +
+      'กด "ปรับยอด" ใน LIFF เจ้าของ',
+  }], 'handleSupervisorTiebreaker');
+
+  return {
+    ok: true,
+    recordType: 'count',
+    countId: countId,
+    status: 'awaiting_owner',
+    system_qty: systemQty,
+    final_qty: finalQty,
+    variance: variance,
+  };
 }
