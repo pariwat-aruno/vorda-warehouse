@@ -16,6 +16,44 @@ import { CONFIG } from './config.js';
 import { initAuth, state } from './auth.js';
 import { api } from './api.js';
 
+/** แสดง modal ของ LINE userId + ปุ่ม copy (ไม่ navigate ออกจาก LIFF) */
+export function showMyIdModal() {
+  if (!state.lineUserId) {
+    alert('ยังไม่ได้ login LIFF');
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'id-modal-overlay';
+  overlay.innerHTML =
+    '<div class="id-modal">' +
+    '  <h3>LINE User ID ของคุณ</h3>' +
+    '  <div class="muted" style="font-size:12px">ชื่อโปรไฟล์: <strong>' + (state.profile && state.profile.displayName || '-') + '</strong></div>' +
+    '  <div class="id-box" id="_idbox">' + state.lineUserId + '</div>' +
+    '  <button class="btn-primary" id="_copybtn" type="button">คัดลอก ID</button>' +
+    '  <button class="btn-secondary" id="_closebtn" type="button" style="margin-top:6px">ปิด</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('_closebtn').onclick = () => overlay.remove();
+  document.getElementById('_copybtn').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(state.lineUserId);
+      document.getElementById('_copybtn').textContent = 'คัดลอกแล้ว';
+    } catch (e) {
+      const range = document.createRange();
+      range.selectNode(document.getElementById('_idbox'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+      document.getElementById('_copybtn').textContent = 'กดค้างที่ ID เพื่อคัดลอก';
+    }
+  };
+}
+
+// expose ให้ inline onclick ใช้ได้
+if (typeof window !== 'undefined') {
+  window.__showMyId = showMyIdModal;
+}
+
 /**
  * @param {string} liffId — LIFF ID ของหน้านี้
  * @param {object} [opts]

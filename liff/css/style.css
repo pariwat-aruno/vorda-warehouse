@@ -399,11 +399,32 @@ textarea:focus { outline: none; border-color: var(--cherry); box-shadow: 0 0 0 3
   max-width: 480px; margin: 0 auto 12px;
   font-size: 12px;
 }
-.top-bar a {
+.top-bar a, .top-bar button.link {
   color: var(--cherry); text-decoration: none; font-weight: 600;
   padding: 6px 10px; border-radius: 6px;
+  background: transparent; border: none;
+  font-size: 12px; font-family: inherit; cursor: pointer;
+  width: auto;
 }
-.top-bar a:active { background: var(--cherry-tint); }
+.top-bar a:active, .top-bar button.link:active { background: var(--cherry-tint); }
+
+/* ===== ID modal (in-page, no navigation) ===== */
+.id-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; padding: 16px;
+}
+.id-modal {
+  background: var(--white); border-radius: 12px;
+  padding: 20px; max-width: 360px; width: 100%;
+}
+.id-modal h3 { margin: 0 0 8px; color: var(--cherry); font-size: 16px; }
+.id-modal .id-box {
+  background: var(--cherry-tint); border: 1px solid var(--cherry);
+  border-radius: 8px; padding: 12px;
+  font-family: "SF Mono", Menlo, monospace; font-size: 13px;
+  word-break: break-all; margin: 10px 0;
+}
 
 /* ===== Footer brand (ทุก page) ===== */
 .page-footer {
