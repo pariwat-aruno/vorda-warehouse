@@ -240,6 +240,7 @@ function handleAddManager(payload) {
 
   try {
     _setManagerList_(role, addId, true, name);
+    logOwnerAction_(lineUserId, 'addManager', addId, role, { name: name });
     return Object.assign({ ok: true, role: role, addLineUserId: addId, added: true }, handleListUsers({ lineUserId: lineUserId }));
   } catch (err) {
     logError('handleAddManager', err.message, { role: role, addId: addId });
@@ -274,6 +275,7 @@ function handleRemoveManager(payload) {
       return { ok: false, error: 'last_owner', message: 'ลบ owner คนสุดท้ายไม่ได้ — จะถูก lockout' };
     }
     _setManagerList_(role, removeId, false);
+    logOwnerAction_(lineUserId, 'removeManager', removeId, role, {});
     return Object.assign({ ok: true, role: role, removeLineUserId: removeId, removed: true }, handleListUsers({ lineUserId: lineUserId }));
   } catch (err) {
     logError('handleRemoveManager', err.message, { role: role, removeId: removeId });
@@ -346,6 +348,7 @@ function handleSetStaffName(payload) {
     const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
     if (!sh) throw new Error('sheet Staff not found');
     _updateStaffName_(sh, targetId, name);
+    logOwnerAction_(lineUserId, 'setStaffName', targetId, '', { name: name });
     return { ok: true, targetLineUserId: targetId, name: name };
   } catch (err) {
     logError('handleSetStaffName', err.message, { targetId: targetId });
@@ -413,6 +416,7 @@ function handleApproveMovement(payload) {
       sh.getRange(rowIdx, headers.indexOf('cancel_at') + 1).setValue(now);
       sh.getRange(rowIdx, headers.indexOf('cancel_reason') + 1).setValue('owner rejected');
       logInfo('handleApproveMovement', 'rejected', { movementId: movementId, type: movementType });
+      logOwnerAction_(lineUserId, 'approveMovement', movementId, 'reject', { movementType: movementType, qty: qtyValue });
       const typeLabel = _movementTypeLabel_(movementType);
       safePushToAllManagers_([{
         type: 'text',
@@ -456,6 +460,9 @@ function handleApproveMovement(payload) {
     logInfo('handleApproveMovement', 'accepted', {
       movementId: movementId, type: movementType, qty: qtyValue,
       stock_before: stock.qty_before, stock_after: stock.qty_after,
+    });
+    logOwnerAction_(lineUserId, 'approveMovement', movementId, 'accept', {
+      movementType: movementType, delta: delta, stock_after: stock.qty_after,
     });
 
     safePushToAllManagers_([{
@@ -526,12 +533,103 @@ function handleSetSetting(payload) {
       sh.getRange(rowIdx, 2).setValue(newVal);
       clearConfigCache();
       logInfo('handleSetSetting', 'updated', { key: key, value: newVal });
+      logOwnerAction_(lineUserId, 'setSetting', key, newVal, {});
       return { ok: true, key: key, value: newVal, updated: true };
     }
 
     return { ok: true, key: key, value: sh.getRange(rowIdx, 2).getValue() };
   } catch (err) {
     logError('handleSetSetting', err.message, { key: key });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+// =====================================================================
+// OWNER ACTION LOG — บันทึกทุก mutating action ของ owner
+// =====================================================================
+
+const OWNER_LOG_HEADERS = ['timestamp', 'owner_user_id', 'owner_name', 'action', 'target_id', 'decision', 'detail'];
+
+/**
+ * เขียน log การกระทำ owner — sheet `OwnerLog` (สร้างอัตโนมัติ)
+ * never throws — log failure ไม่ block business logic
+ */
+function logOwnerAction_(lineUserId, action, targetId, decision, detail) {
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    let sh = ss.getSheetByName('OwnerLog');
+    if (!sh) {
+      sh = ss.insertSheet('OwnerLog');
+      sh.getRange(1, 1, 1, OWNER_LOG_HEADERS.length).setValues([OWNER_LOG_HEADERS]);
+      sh.setFrozenRows(1);
+      sh.getRange(1, 1, 1, OWNER_LOG_HEADERS.length).setFontWeight('bold');
+    }
+    const staff = findStaffByLineUserId(lineUserId);
+    const ownerName = (staff && staff.name) || '';
+    sh.appendRow([
+      nowBangkok(),
+      String(lineUserId || ''),
+      ownerName,
+      String(action || ''),
+      String(targetId || ''),
+      String(decision || ''),
+      detail == null ? '' : (typeof detail === 'string' ? detail : JSON.stringify(detail)),
+    ]);
+  } catch (err) {
+    console.error('logOwnerAction_ failed:', err && err.message ? err.message : err);
+  }
+}
+
+/**
+ * owner ดู log ของตัวเอง / ทุกคน
+ *
+ * payload: { lineUserId, ownerUserId?, action?, limit?, from?, to? }
+ */
+function handleGetOwnerLog(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+
+  const filterOwnerId = payload.ownerUserId ? String(payload.ownerUserId) : '';
+  const filterAction = payload.action ? String(payload.action) : '';
+  const from = payload.from ? String(payload.from) : '';
+  const to = payload.to ? String(payload.to) : '';
+  const limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 500);
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    const sh = ss.getSheetByName('OwnerLog');
+    if (!sh) return { ok: true, items: [], count: 0 };
+
+    const last = sh.getLastRow();
+    if (last < 2) return { ok: true, items: [], count: 0 };
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const data = sh.getRange(2, 1, last - 1, headers.length).getValues();
+    const items = [];
+    for (let i = 0; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      const r = {};
+      headers.forEach(function (h, j) {
+        const v = data[i][j];
+        r[h] = (v instanceof Date) ? _serializeDate_(v) : v;
+      });
+      // filter
+      if (filterOwnerId && String(r.owner_user_id) !== filterOwnerId) continue;
+      if (filterAction && String(r.action) !== filterAction) continue;
+      if (from || to) {
+        const d = _datePartBangkok_(r.timestamp);
+        if (from && d < from) continue;
+        if (to && d > to) continue;
+      }
+      items.push(r);
+    }
+    items.sort(function (a, b) { return String(b.timestamp || '').localeCompare(String(a.timestamp || '')); });
+    return { ok: true, items: items.slice(0, limit), count: items.length };
+  } catch (err) {
+    logError('handleGetOwnerLog', err.message);
     return { ok: false, error: 'server_error', message: err.message };
   }
 }
@@ -728,6 +826,7 @@ function handleAddProduct(payload) {
     stockSh.appendRow([newId, name, 0, '', '', now]);
 
     logInfo('handleAddProduct', 'added', { productId: newId, name: name, unit: unit });
+    logOwnerAction_(lineUserId, 'addProduct', newId, '', { name: name, unit: unit });
     return { ok: true, product_id: newId, name: name, unit: unit };
   } catch (err) {
     logError('handleAddProduct', err.message);
@@ -776,6 +875,7 @@ function handleUpdateProduct(payload) {
     }
 
     logInfo('handleUpdateProduct', 'updated', { productId: productId, name: name, unit: unit, isActive: isActive });
+    logOwnerAction_(lineUserId, 'updateProduct', productId, '', { name: name, unit: unit, isActive: isActive });
     return { ok: true, productId: productId };
   } catch (err) {
     logError('handleUpdateProduct', err.message, { productId: productId });

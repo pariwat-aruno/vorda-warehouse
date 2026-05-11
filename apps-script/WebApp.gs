@@ -124,6 +124,8 @@ function _handleLiffAction_(body) {
         result = handleUpdateProduct(payload); break;
       case 'getHistory':
         result = handleGetHistory(payload); break;
+      case 'getOwnerLog':
+        result = handleGetOwnerLog(payload); break;
 
       // OWNER report
       case 'getDailyReport':

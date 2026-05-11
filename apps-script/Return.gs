@@ -264,6 +264,7 @@ function handleApproveReturn(payload) {
       logInfo('handleApproveReturn', 'accepted', {
         returnId: returnId, movementIds: movementIds, items: items.length,
       });
+      logOwnerAction_(lineUserId, 'approveReturn', returnId, 'accept_to_stock', { movementIds: movementIds });
 
       const itemsText = appliedItems.map(it =>
         '  • ' + it.product_name + ' +' + it.qty + ' (คงเหลือ ' + it.stock_after + ')'
@@ -286,6 +287,7 @@ function handleApproveReturn(payload) {
     if (decision === 'reject_bad') {
       sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('rejected');
       logInfo('handleApproveReturn', 'rejected', { returnId: returnId });
+      logOwnerAction_(lineUserId, 'approveReturn', returnId, 'reject_bad', {});
 
       const itemsText = items.map(it => it.product_name + ' ×' + it.qty).join(', ');
       safePushToAllOwners_([{
@@ -321,6 +323,7 @@ function handleApproveReturn(payload) {
     logInfo('handleApproveReturn', 'forwarded_to_claim', {
       returnId: returnId, claimId: claimId, trackingNumber: trackingNumber,
     });
+    logOwnerAction_(lineUserId, 'approveReturn', returnId, 'forward_to_claim', { claimId: claimId });
 
     safePushToAllOwners_([{
       type: 'text',
@@ -430,6 +433,7 @@ function handleUpdateClaimStage(payload) {
       claimId: claimId, from: currentStage, to: newStage,
       closedResult: newStage === 'closed' ? closedResult : null,
     });
+    logOwnerAction_(lineUserId, 'updateClaimStage', claimId, newStage, { from: currentStage, closedResult: closedResult });
 
     const resultStr = newStage === 'closed' ? (' (' + (closedResult === 'success' ? 'สำเร็จ' : 'ไม่สำเร็จ') + ')') : '';
     safePushToAllOwners_([{

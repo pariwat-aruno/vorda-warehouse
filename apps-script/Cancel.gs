@@ -207,6 +207,7 @@ function handleApproveCancel(payload) {
       logInfo('handleApproveCancel', 'accepted', {
         cancelId: cancelId, movementIds: movementIds, items: items.length,
       });
+      logOwnerAction_(lineUserId, 'approveCancel', cancelId, 'accept', { movementIds: movementIds, items: items.length });
 
       const itemsText = appliedItems.map(it =>
         '  • ' + it.product_name + ' +' + it.qty + ' (คงเหลือ ' + it.stock_after + ')'
@@ -229,6 +230,7 @@ function handleApproveCancel(payload) {
     // reject
     sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('rejected');
     logInfo('handleApproveCancel', 'rejected', { cancelId: cancelId });
+    logOwnerAction_(lineUserId, 'approveCancel', cancelId, 'reject', {});
     safePushToAllOwners_([{
       type: 'text',
       text:

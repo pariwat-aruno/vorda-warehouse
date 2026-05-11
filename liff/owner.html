@@ -102,6 +102,17 @@
         <button id="reload-btn" class="btn-primary" type="button" style="margin-top:10px">โหลดใหม่</button>
       </div>
 
+      <!-- Section 8.5: Owner action log -->
+      <div class="dash-section">
+        <h2>ประวัติการกระทำของเจ้าของ <span id="ownerlog-count" class="muted"></span></h2>
+        <div class="row" style="margin-bottom:10px">
+          <input id="ownerlog-from" type="date" style="margin-bottom:0" />
+          <input id="ownerlog-to" type="date" style="margin-bottom:0" />
+        </div>
+        <button id="ownerlog-load-btn" class="btn-secondary" type="button" style="margin-bottom:12px">โหลด log</button>
+        <div id="ownerlog-list"></div>
+      </div>
+
       <!-- Section 9: Users management (ล่างสุด) -->
       <div class="dash-section">
         <h2>จัดการสิทธิ์</h2>
@@ -975,6 +986,55 @@
     }
 
     document.getElementById('history-load-btn').addEventListener('click', loadHistory);
+
+    // ===== Owner action log =====
+    async function loadOwnerLog() {
+      const from = document.getElementById('ownerlog-from').value;
+      const to = document.getElementById('ownerlog-to').value;
+      const list = document.getElementById('ownerlog-list');
+      const cnt = document.getElementById('ownerlog-count');
+      list.innerHTML = '<div class="empty">กำลังโหลด...</div>';
+      try {
+        const res = await api.post('getOwnerLog', {
+          lineUserId: state.lineUserId, from: from, to: to, limit: 200,
+        });
+        cnt.textContent = '(' + res.count + ')';
+        list.innerHTML = '';
+        if (!res.items.length) {
+          list.innerHTML = '<div class="empty">ยังไม่มี log</div>';
+          return;
+        }
+        const actionLabel = {
+          approveMovement: 'Approve Movement',
+          approveReturn: 'Approve ตีคืน',
+          approveCancel: 'Approve ยกเลิก',
+          adjustStock: 'ปรับยอด (count)',
+          updateClaimStage: 'Update Claim',
+          addProduct: '+ สินค้า',
+          updateProduct: 'แก้สินค้า',
+          addManager: '+ สิทธิ์',
+          removeManager: 'ลบสิทธิ์',
+          setStaffName: 'ตั้งชื่อ',
+          setSetting: 'แก้ setting',
+        };
+        res.items.forEach(it => {
+          const div = document.createElement('div');
+          div.className = 'dash-item';
+          const label = actionLabel[it.action] || it.action;
+          div.innerHTML =
+            '<div><strong>' + esc(label) + '</strong>' +
+              (it.decision ? ' · <span style="color:var(--cherry)">' + esc(it.decision) + '</span>' : '') +
+              ' · ' + esc(it.target_id || '-') + '</div>' +
+            '<div class="meta">โดย ' + esc(it.owner_name || '-') + ' · ' + fmtDateTime(it.timestamp) + '</div>' +
+            (it.detail ? '<div class="meta" style="font-family: monospace; font-size:11px; word-break:break-word">' + esc(it.detail) + '</div>' : '');
+          list.appendChild(div);
+        });
+      } catch (err) {
+        list.innerHTML = '';
+        showError(ui.err, 'โหลด log ไม่ได้: ' + (err.code || err.message));
+      }
+    }
+    document.getElementById('ownerlog-load-btn').addEventListener('click', loadOwnerLog);
 
     document.getElementById('daily-btn').addEventListener('click', async function () {
       this.disabled = true; this.textContent = 'กำลังส่ง...';

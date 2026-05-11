@@ -373,6 +373,7 @@ function handleAdjustStock(payload) {
       deltaQty: deltaQty, system_qty: systemQty, final_qty: finalQty,
       stock_before: stock.qty_before, stock_after: stock.qty_after,
     });
+    logOwnerAction_(lineUserId, 'adjustStock', countId, '', { movementId: movementId, deltaQty: deltaQty, stock_after: stock.qty_after, reason: reason });
 
     // 4. push owner confirmation
     const deltaStr = (deltaQty > 0 ? '+' : '') + deltaQty;
