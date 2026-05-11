@@ -108,7 +108,31 @@ export async function initMovementForm(opts) {
   }
 
   // single-staff mode → ซ่อนทุก guidance ของ double-blind (toggle + warnings) เหลือแต่ฟอร์ม
-  const singleMode = !!(state.myStatus && state.myStatus.settings && state.myStatus.settings.single_staff_mode);
+  // debug: ใช้ debugFetchSettings_ ดึง config ปัจจุบันมาตรวจ (กัน state.myStatus.settings undefined จาก backend เก่า)
+  let singleMode = !!(state.myStatus && state.myStatus.settings && state.myStatus.settings.single_staff_mode);
+  if (!singleMode) {
+    // fallback — ดึง getMyStatus อีกครั้ง (force fresh)
+    try {
+      const st = await api.post('getMyStatus', { lineUserId: state.lineUserId });
+      state.myStatus = st;
+      singleMode = !!(st.settings && st.settings.single_staff_mode);
+    } catch (e) {}
+  }
+  // visible mode indicator — เพื่อให้ staff รู้แน่ๆว่าระบบอยู่โหมดไหน
+  const card = document.querySelector('.card');
+  if (card) {
+    const pill = document.createElement('div');
+    pill.style.cssText = 'display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; margin: -8px 0 12px 0;'
+      + (singleMode
+        ? 'background:#fbeaed; color:#9a0c24; border:1px solid #c8102e;'
+        : 'background:#f5f5f5; color:#6b6b6b; border:1px solid #e5e7eb;');
+    pill.textContent = singleMode ? 'โหมด staff คนเดียว' : 'โหมด double-blind (2 คน)';
+    // ใส่หลัง .subtitle (หรือ h1 ถ้าไม่มี)
+    const sub = card.querySelector('.subtitle');
+    const target = sub || card.querySelector('h1');
+    if (target) target.parentNode.insertBefore(pill, target.nextSibling);
+  }
+
   if (singleMode) {
     const toggle = ui.roundR1 && ui.roundR1.parentNode;
     if (toggle && toggle.classList && toggle.classList.contains('round-toggle')) {
