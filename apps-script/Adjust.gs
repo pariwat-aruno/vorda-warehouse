@@ -107,17 +107,15 @@ function _handleAdjustRound1_(lineUserId, name, productId, qty, reason, photos) 
   });
 
   if (singleMode) {
-    safePushToAllOwners_([{
-      type: 'text',
-      text:
-        '⚠️ เสียหาย รอ approve\n' +
-        'รหัส: ' + movementId + '\n' +
-        'สินค้า: ' + productName + '\n' +
-        'จำนวน: ' + qty + ' ชิ้น\n' +
-        'เหตุผล: ' + reason + '\n' +
-        'พนักงาน: ' + name + '\n' +
-        'กด approve ใน LIFF เจ้าของ',
-    }], 'handleSubmitAdjust');
+    safePushToAllOwners_([buildPendingMovementCard({
+      movement_id: movementId,
+      movement_type: 'adjust',
+      product_name: productName,
+      submitter1_qty: qty,
+      submitter1_name: name,
+      reason: reason,
+      photo_urls: photoUrls.join(','),
+    })], 'handleSubmitAdjust');
     return {
       ok: true,
       movementId: movementId,

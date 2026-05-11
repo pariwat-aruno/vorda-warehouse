@@ -102,16 +102,14 @@ function _handleInboundRound1_(lineUserId, name, productId, qty, photos) {
   });
 
   if (singleMode) {
-    safePushToAllOwners_([{
-      type: 'text',
-      text:
-        '⚠️ รับเข้า รอ approve\n' +
-        'รหัส: ' + movementId + '\n' +
-        'สินค้า: ' + productName + '\n' +
-        'จำนวน: ' + qty + ' ชิ้น\n' +
-        'พนักงาน: ' + name + '\n' +
-        'กด approve ใน LIFF เจ้าของ',
-    }], 'handleSubmitInbound');
+    safePushToAllOwners_([buildPendingMovementCard({
+      movement_id: movementId,
+      movement_type: 'inbound',
+      product_name: productName,
+      submitter1_qty: qty,
+      submitter1_name: name,
+      photo_urls: photoUrls.join(','),
+    })], 'handleSubmitInbound');
     return {
       ok: true,
       movementId: movementId,

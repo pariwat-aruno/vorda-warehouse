@@ -39,6 +39,38 @@ function _flexHeader_(label) {
   };
 }
 
+/** footer พร้อม postback action buttons + LIFF link + brand */
+function _flexFooterActions_(actions) {
+  const contents = [];
+  (actions || []).forEach(function (a) {
+    contents.push({
+      type: 'button',
+      style: a.style || 'secondary',
+      color: a.color,
+      height: 'sm',
+      action: a.action && a.action.type === 'postback' ? {
+        type: 'postback',
+        label: a.label,
+        data: a.action.data,
+        displayText: a.action.displayText || a.label,
+      } : {
+        type: 'uri',
+        label: a.label,
+        uri: (a.action && a.action.uri) || _ownerLiffUrl_(),
+      },
+    });
+  });
+  // เปิด LIFF เจ้าของ (lock อยู่ท้ายเสมอ — เผื่ออยากไปดูเต็ม)
+  contents.push({
+    type: 'button',
+    style: 'link',
+    height: 'sm',
+    action: { type: 'uri', label: 'เปิด LIFF เจ้าของ', uri: _ownerLiffUrl_() },
+  });
+  contents.push({ type: 'text', text: BRAND, size: 'xxs', color: '#999999', align: 'center', margin: 'sm' });
+  return { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md', contents: contents };
+}
+
 /** footer brand + ปุ่มเปิด owner LIFF */
 function _flexFooter_(buttonLabel) {
   return {
@@ -103,8 +135,54 @@ function buildVarianceAlertCard(count) {
           { type: 'text', text: 'กด "ปรับยอด" ใน LIFF เจ้าของ', size: 'xs', color: '#888888', margin: 'sm' },
         ],
       },
-      footer: _flexFooter_('ปรับยอดใน LIFF'),
+      footer: _flexFooterActions_([
+        { label: 'รับทราบ', style: 'secondary',
+          action: { type: 'postback', data: 'action=ack', displayText: 'รับทราบ' } },
+      ]),
     },
+  };
+}
+
+/** Movement รอ approve (single-staff mode) — รับเข้า/เตรียมแพ๊ค/เสียหาย */
+function buildPendingMovementCard(m) {
+  const photoUrls = String(m.photo_urls || '').split(',').filter(function (u) { return u && u.trim(); });
+  const thumb = photoUrls.length > 0 ? driveUrlToThumbnail_(photoUrls[0], 800) : null;
+  const type = String(m.movement_type || '');
+  const typeLabel = type === 'inbound' ? 'รับเข้า'
+                  : type === 'outbound' ? 'เตรียมแพ็ค'
+                  : type === 'adjust' ? 'เสียหาย' : type;
+
+  const bubble = {
+    type: 'bubble',
+    header: _flexHeader_('⚠️ ' + typeLabel + ' รอ approve'),
+    body: {
+      type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md',
+      contents: [
+        _flexRow_('รหัส', m.movement_id || ''),
+        _flexRow_('สินค้า', m.product_name || ''),
+        _flexRow_('จำนวน', (m.submitter1_qty || m.qty || 0) + ' ชิ้น', CHERRY_PRIMARY),
+        ...(m.reason ? [_flexRow_('เหตุผล', m.reason)] : []),
+        _flexRow_('พนักงาน', m.submitter1_name || ''),
+      ],
+    },
+    footer: _flexFooterActions_([
+      { label: 'Approve (เข้า Stock)', style: 'primary', color: CHERRY_DARK,
+        action: { type: 'postback',
+          data: 'action=approveMovement&id=' + m.movement_id + '&decision=accept',
+          displayText: 'Approve ' + m.movement_id } },
+      { label: 'Reject', style: 'secondary',
+        action: { type: 'postback',
+          data: 'action=approveMovement&id=' + m.movement_id + '&decision=reject',
+          displayText: 'Reject ' + m.movement_id } },
+    ]),
+  };
+  if (thumb) {
+    bubble.hero = { type: 'image', url: thumb, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' };
+  }
+  return {
+    type: 'flex',
+    altText: '⚠️ ' + typeLabel + ' รอ approve — ' + (m.product_name || m.movement_id),
+    contents: bubble,
   };
 }
 
@@ -137,11 +215,28 @@ function buildPendingReturnCard(r) {
     });
   }
 
+  // action buttons — เฉพาะกรณีที่ button ใช้ได้ตรงๆ (ของเรา + ดี = Accept ได้)
+  const actions = [];
+  if (isOurProduct && conditionThai === 'ดี') {
+    actions.push({ label: 'Accept (เข้า Stock)', style: 'primary', color: CHERRY_DARK,
+      action: { type: 'postback',
+        data: 'action=approveReturn&id=' + r.return_id + '&decision=accept_to_stock',
+        displayText: 'Accept ' + r.return_id } });
+  }
+  actions.push({ label: 'Reject', style: 'secondary',
+    action: { type: 'postback',
+      data: 'action=approveReturn&id=' + r.return_id + '&decision=reject_bad',
+      displayText: 'Reject ' + r.return_id } });
+  actions.push({ label: 'ส่งเคลม supplier', style: 'secondary',
+    action: { type: 'postback',
+      data: 'action=approveReturn&id=' + r.return_id + '&decision=forward_to_claim',
+      displayText: 'ส่งเคลม ' + r.return_id } });
+
   const bubble = {
     type: 'bubble',
     header: _flexHeader_('⚠️ ตีคืนรอ approve'),
     body: body,
-    footer: _flexFooter_('Approve ใน LIFF'),
+    footer: _flexFooterActions_(actions),
   };
   if (thumb) {
     bubble.hero = {
@@ -165,6 +260,17 @@ function buildPendingCancelCard(c) {
   const photoUrls = String(c.photo_urls || '').split(',').filter(function (u) { return u && u.trim(); });
   const thumb = photoUrls.length > 0 ? driveUrlToThumbnail_(photoUrls[0], 800) : null;
 
+  const actions = [
+    { label: 'Accept (เข้า Stock)', style: 'primary', color: CHERRY_DARK,
+      action: { type: 'postback',
+        data: 'action=approveCancel&id=' + c.cancel_id + '&decision=accept',
+        displayText: 'Accept ' + c.cancel_id } },
+    { label: 'Reject', style: 'secondary',
+      action: { type: 'postback',
+        data: 'action=approveCancel&id=' + c.cancel_id + '&decision=reject',
+        displayText: 'Reject ' + c.cancel_id } },
+  ];
+
   const bubble = {
     type: 'bubble',
     header: _flexHeader_('⚠️ ยกเลิกรอ approve'),
@@ -178,7 +284,7 @@ function buildPendingCancelCard(c) {
         _flexRow_('พนักงาน', c.staff_name || ''),
       ],
     },
-    footer: _flexFooter_('Approve ใน LIFF'),
+    footer: _flexFooterActions_(actions),
   };
   if (thumb) {
     bubble.hero = {
@@ -223,7 +329,10 @@ function buildSupervisorTiebreakerCard(record, kind, typeLabel) {
     type: 'bubble',
     header: _flexHeader_('⚠️ ขอตัดสิน'),
     body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md', contents: bodyContents },
-    footer: _flexFooter_('ตัดสินใน LIFF'),
+    footer: _flexFooterActions_([
+      { label: 'รับทราบ', style: 'secondary',
+        action: { type: 'postback', data: 'action=ack', displayText: 'รับทราบ' } },
+    ]),
   };
   if (thumb) {
     bubble.hero = { type: 'image', url: thumb, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' };
@@ -276,7 +385,10 @@ function buildDailyReportCard(report) {
           ((report.pending && report.pending.count_variance) || 0) > 0 ? CHERRY_PRIMARY : '#222222'),
       ]),
     },
-    footer: _flexFooter_('เปิด LIFF เจ้าของ'),
+    footer: _flexFooterActions_([
+      { label: 'รับทราบ', style: 'secondary',
+        action: { type: 'postback', data: 'action=ack', displayText: 'รับทราบ' } },
+    ]),
   };
 
   return {
@@ -324,7 +436,10 @@ function buildWeeklyReportCard(report) {
         _flexRow_('ยกเลิก accepted', (report.cancels && report.cancels.accepted) || 0),
       ]),
     },
-    footer: _flexFooter_('เปิด LIFF เจ้าของ'),
+    footer: _flexFooterActions_([
+      { label: 'รับทราบ', style: 'secondary',
+        action: { type: 'postback', data: 'action=ack', displayText: 'รับทราบ' } },
+    ]),
   };
 
   return {

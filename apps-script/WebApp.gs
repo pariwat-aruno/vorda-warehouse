@@ -228,12 +228,67 @@ function _handleMessageEvent_(event) {
   // default: ไม่ตอบ (กัน spam)
 }
 
-/** กดปุ่มใน flex card (postback) */
+/** กดปุ่มใน flex card (postback) — ใช้ approve/reject ทาง LINE chat โดยตรง */
 function _handlePostbackEvent_(event) {
-  const data = event.postback && event.postback.data;
-  // implement ตาม flex card postback ที่กำหนดใน FlexCard.gs
-  // เช่น: action=approve_return&return_id=RET-...
-  logInfo('_handlePostbackEvent_', 'postback received', { data: data });
+  const dataStr = (event.postback && event.postback.data) || '';
+  const userId = event.source && event.source.userId;
+  const replyToken = event.replyToken;
+
+  // parse query-string format: action=xxx&id=yyy&decision=zzz
+  const params = {};
+  dataStr.split('&').forEach(function (p) {
+    const eq = p.indexOf('=');
+    if (eq < 0) { params[decodeURIComponent(p)] = ''; return; }
+    params[decodeURIComponent(p.substring(0, eq))] = decodeURIComponent(p.substring(eq + 1));
+  });
+
+  const action = params.action || '';
+  logInfo('_handlePostbackEvent_', 'postback', { action: action, userId: userId, params: params });
+
+  // ack — ไม่ทำอะไร แค่ส่ง reply ให้ user รู้ว่ารับแล้ว
+  if (action === 'ack') {
+    replyText(replyToken, '✓ รับทราบแล้ว');
+    return;
+  }
+
+  // ทุก action ต่อไปต้อง isOwner
+  if (!isOwner(userId)) {
+    replyText(replyToken, '⚠️ ไม่มีสิทธิ์ — เฉพาะเจ้าของระบบ');
+    return;
+  }
+
+  try {
+    let result;
+    if (action === 'approveMovement') {
+      result = handleApproveMovement({
+        lineUserId: userId, movementId: params.id, decision: params.decision,
+      });
+    } else if (action === 'approveReturn') {
+      result = handleApproveReturn({
+        lineUserId: userId, returnId: params.id, decision: params.decision,
+      });
+    } else if (action === 'approveCancel') {
+      result = handleApproveCancel({
+        lineUserId: userId, cancelId: params.id, decision: params.decision,
+      });
+    } else {
+      replyText(replyToken, '❓ คำสั่งไม่รู้จัก: ' + action);
+      return;
+    }
+
+    if (result && result.ok) {
+      const msg = '✓ ' + (params.id || '') + ' → ' + (result.status || 'success')
+        + (result.qty_after != null ? '\nStock = ' + result.qty_after : '');
+      replyText(replyToken, msg);
+    } else {
+      const err = (result && result.error) || 'unknown';
+      const detail = (result && result.message) ? '\n' + result.message : '';
+      replyText(replyToken, '❌ ไม่สำเร็จ: ' + err + detail);
+    }
+  } catch (err) {
+    logError('_handlePostbackEvent_', err.message, { action: action });
+    replyText(replyToken, '❌ Error: ' + err.message);
+  }
 }
 
 /** ผู้ใช้ add bot เป็นเพื่อนครั้งแรก */

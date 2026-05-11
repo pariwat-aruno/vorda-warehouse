@@ -73,30 +73,6 @@
         <div id="claims-list"></div>
       </div>
 
-      <!-- Section 6: Users management -->
-      <div class="dash-section">
-        <h2>จัดการสิทธิ์</h2>
-
-        <div class="label" style="margin-top:6px">เจ้าของ (Owner)</div>
-        <div id="owners-list"></div>
-
-        <div class="label" style="margin-top:14px">หัวหน้าคลัง (Supervisor)</div>
-        <div id="supervisors-list"></div>
-
-        <div class="label" style="margin-top:14px">เพิ่มสิทธิ์</div>
-        <div class="field">
-          <input id="add-userid" type="text" placeholder="LINE userId (U + 32 ตัวอักษร)" style="margin-bottom:6px" />
-          <input id="add-name" type="text" placeholder="ชื่อ (optional — จะ register ใน Staff ด้วย)" style="margin-bottom:6px" />
-          <div class="row">
-            <button id="add-owner-btn" class="btn-primary" type="button">+ Owner</button>
-            <button id="add-sup-btn" class="btn-secondary" type="button">+ Supervisor</button>
-          </div>
-        </div>
-
-        <div class="label" style="margin-top:14px">พนักงานคลัง (Staff) <span id="staff-count" class="muted"></span></div>
-        <div id="staff-list"></div>
-      </div>
-
       <!-- Section 7: History / Audit -->
       <div class="dash-section">
         <h2>ประวัติ approve <span id="history-count" class="muted"></span></h2>
@@ -124,6 +100,30 @@
           <button id="weekly-btn" class="btn-secondary" type="button">รายสัปดาห์ (ส่ง LINE)</button>
         </div>
         <button id="reload-btn" class="btn-primary" type="button" style="margin-top:10px">โหลดใหม่</button>
+      </div>
+
+      <!-- Section 9: Users management (ล่างสุด) -->
+      <div class="dash-section">
+        <h2>จัดการสิทธิ์</h2>
+
+        <div class="label" style="margin-top:6px">เจ้าของ (Owner)</div>
+        <div id="owners-list"></div>
+
+        <div class="label" style="margin-top:14px">หัวหน้าคลัง (Supervisor)</div>
+        <div id="supervisors-list"></div>
+
+        <div class="label" style="margin-top:14px">เพิ่มสิทธิ์</div>
+        <div class="field">
+          <input id="add-userid" type="text" placeholder="LINE userId (U + 32 ตัวอักษร)" style="margin-bottom:6px" />
+          <input id="add-name" type="text" placeholder="ชื่อ (optional — จะ register ใน Staff ด้วย)" style="margin-bottom:6px" />
+          <div class="row">
+            <button id="add-owner-btn" class="btn-primary" type="button">+ Owner</button>
+            <button id="add-sup-btn" class="btn-secondary" type="button">+ Supervisor</button>
+          </div>
+        </div>
+
+        <div class="label" style="margin-top:14px">พนักงานคลัง (Staff) <span id="staff-count" class="muted"></span></div>
+        <div id="staff-list"></div>
       </div>
     </div>
   </div>
