@@ -7,8 +7,8 @@
  */
 
 export const CONFIG = {
-  // Apps Script Web App URL — แก้หลัง deploy Apps Script
-  API_URL: 'https://script.google.com/macros/s/__REPLACE_ME__/exec',
+  // Apps Script Web App URL
+  API_URL: 'https://script.google.com/macros/s/AKfycbwLmaNaopejgR2gIKSY3nm1MBHLIcfLw06_KiLx7Tn08MShl8yOZNAIBP4IjYF_BGdw/exec',
 
   // LIFF IDs — 7 apps (1 ID ต่อ 1 หน้า)
   // staff

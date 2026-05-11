@@ -314,11 +314,12 @@
 ## Phase 6 — Deploy + ทดสอบ end-to-end
 
 ### TASK-31: Deploy Apps Script Web App
-- [ ] Apps Script → Deploy → New deployment → Web app
-- [ ] Execute as: Me / Who has access: **Anyone**
-- [ ] copy URL → ใส่ใน:
-  - `liff/js/config.js` API_URL
-  - LINE Developers webhook URL
+- [x] Apps Script → Deploy → New deployment → Web app
+- [x] Execute as: Me / Who has access: **Anyone**
+- [x] copy URL → ใส่ใน `liff/js/config.js` API_URL
+- [x] verify: doGet returns `{"ok":true,"service":"vorda-warehouse","now":...}`
+- [ ] LINE Developers webhook URL — รอ owner userIds ก่อนใช้ (TASK-06 deferred)
+- **URL:** `https://script.google.com/macros/s/AKfycbwLmaNaopejgR2gIKSY3nm1MBHLIcfLw06_KiLx7Tn08MShl8yOZNAIBP4IjYF_BGdw/exec`
 
 ### TASK-32: GitHub Pages
 - [ ] Create public repo `vorda-warehouse` (ถ้ายังไม่มี)
