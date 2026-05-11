@@ -454,17 +454,42 @@
       list.forEach(u => {
         const div = document.createElement('div');
         div.className = 'dash-item';
+        const isUnnamed = !u.name || u.name === 'unknown';
+        const displayName = isUnnamed ? '(ยังไม่ได้ตั้งชื่อ)' : u.name;
+        const hint = !u.staff_id ? '<span class="meta"> · ยังไม่เคย submit</span>' : '';
         div.innerHTML =
-          '<div><strong>' + esc(u.name || '(ยังไม่ register)') + '</strong></div>' +
+          '<div><strong>' + esc(displayName) + '</strong>' + hint + '</div>' +
           '<div class="meta" style="word-break:break-all">' + esc(u.line_user_id) + '</div>' +
           '<div class="actions"></div>';
         const acts = div.querySelector('.actions');
+        if (isUnnamed && u.staff_id) {
+          const rename = document.createElement('button');
+          rename.className = 'btn-secondary'; rename.textContent = 'ตั้งชื่อ';
+          rename.onclick = () => setStaffName(u.line_user_id);
+          acts.appendChild(rename);
+        }
         const rm = document.createElement('button');
         rm.className = 'btn-neutral'; rm.textContent = 'ลบ';
-        rm.onclick = () => removeManager(role, u.line_user_id, u.name);
+        rm.onclick = () => removeManager(role, u.line_user_id, displayName);
         acts.appendChild(rm);
         container.appendChild(div);
       });
+    }
+
+    async function setStaffName(lineUserId) {
+      const name = prompt('ตั้งชื่อสำหรับ userId นี้:', '');
+      if (!name || !name.trim()) return;
+      try {
+        await api.post('setStaffName', {
+          lineUserId: state.lineUserId,
+          targetLineUserId: lineUserId,
+          name: name.trim(),
+        });
+        flash(ui.ok, 'ตั้งชื่อสำเร็จ');
+        await loadDashboard();
+      } catch (err) {
+        showError(ui.err, 'ตั้งชื่อไม่ได้: ' + (err.code || err.message));
+      }
     }
 
     async function addManager(role) {

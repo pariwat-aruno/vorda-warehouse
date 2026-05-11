@@ -104,6 +104,8 @@ function _handleLiffAction_(body) {
         result = handleAddManager(payload); break;
       case 'removeManager':
         result = handleRemoveManager(payload); break;
+      case 'setStaffName':
+        result = handleSetStaffName(payload); break;
 
       // OWNER report
       case 'getDailyReport':

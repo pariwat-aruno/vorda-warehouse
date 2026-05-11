@@ -126,13 +126,22 @@ function formatThaiDateTime(d) {
  */
 function autoRegisterStaff_(lineUserId, displayName) {
   if (!lineUserId) return null;
-  const existing = findStaffByLineUserId(lineUserId);
-  if (existing) return existing;
-
   const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
   const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
   if (!sh) throw new Error('sheet Staff not found');
 
+  const existing = findStaffByLineUserId(lineUserId);
+  if (existing) {
+    // ถ้า row เดิมยังไม่มีชื่อ (เช่นเพิ่มผ่าน LIFF โดยไม่ใส่) แต่รอบนี้มี → update ทับ
+    const noName = !existing.name || existing.name === 'unknown';
+    if (noName && displayName) {
+      _updateStaffName_(sh, lineUserId, displayName);
+      existing.name = displayName;
+    }
+    return existing;
+  }
+
+  // gen staff_id ถัดไป
   const last = sh.getLastRow();
   let maxNum = 0;
   if (last >= 2) {
@@ -148,11 +157,28 @@ function autoRegisterStaff_(lineUserId, displayName) {
   const newId = 'S-' + padLeft_(maxNum + 1, 3);
   // isOwner/isSupervisor มี try-catch — ถ้า config ยังว่าง return false → role='staff'
   const role = isOwner(lineUserId) ? 'owner' : (isSupervisor(lineUserId) ? 'supervisor' : 'staff');
-  const name = displayName || 'unknown';
+  const name = displayName || '';
   const now = nowBangkok();
   sh.appendRow([newId, name, role, lineUserId, true, now]);
 
   return { staff_id: newId, name: name, role: role, line_user_id: lineUserId, is_active: true, registered_at: now };
+}
+
+/** update Staff.name โดย LINE userId (helper) */
+function _updateStaffName_(sh, lineUserId, newName) {
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const luidIdx = headers.indexOf('line_user_id');
+  const nameIdx = headers.indexOf('name');
+  if (luidIdx < 0 || nameIdx < 0) return;
+  const data = sh.getRange(2, luidIdx + 1, last - 1, 1).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === String(lineUserId)) {
+      sh.getRange(i + 2, nameIdx + 1).setValue(newName);
+      return;
+    }
+  }
 }
 
 /**

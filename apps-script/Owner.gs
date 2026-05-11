@@ -319,6 +319,35 @@ function _setManagerList_(role, targetId, add, displayName) {
   clearConfigCache();
 }
 
+/**
+ * owner ตั้งชื่อ staff ที่ยังไม่มีชื่อ
+ *
+ * payload: { lineUserId, targetLineUserId, name }
+ */
+function handleSetStaffName(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const targetId = String(payload.targetLineUserId || '').trim();
+  const name = String(payload.name || '').trim();
+
+  if (!lineUserId || !targetId || !name) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'targetLineUserId', 'name'] };
+  }
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+  if (!LINE_USER_ID_RE.test(targetId)) return { ok: false, error: 'invalid_user_id' };
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
+    if (!sh) throw new Error('sheet Staff not found');
+    _updateStaffName_(sh, targetId, name);
+    return { ok: true, targetLineUserId: targetId, name: name };
+  } catch (err) {
+    logError('handleSetStaffName', err.message, { targetId: targetId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
 /** update Staff.role โดย LINE userId (ถ้ามี row นั้น) */
 function _setStaffRole_(targetId, role) {
   const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
