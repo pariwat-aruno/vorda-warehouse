@@ -235,14 +235,15 @@
 - **Acceptance:** ⏳ test ผ่าน LIFF ตอน TASK-30
 
 ### TASK-20: FlexCard.gs — สร้าง flex card 6 ตัว
-- [ ] `buildVarianceAlertCard(count)` — count variance ≠ 0
-- [ ] `buildPendingReturnCard(returnRow)` — มี VDO link + ปุ่ม
-- [ ] `buildPendingCancelCard(cancelRow)`
-- [ ] `buildSupervisorTiebreakerCard(record)` — ขอหัวหน้าตัดสิน
-- [ ] `buildDailyReportCard(report)`
-- [ ] `buildWeeklyReportCard(report)`
-- [ ] ทุก card: header มี logo + brand, footer brand, ปุ่มเปิด owner LIFF
-- [ ] ใช้ `driveUrlToThumbnail_` แปลง Drive URLs
+- [x] `buildVarianceAlertCard(count)` — count variance ≠ 0 + ปุ่มไป LIFF
+- [x] `buildPendingReturnCard(returnRow)` — รูป hero + VDO link + ข้อมูลครบ
+- [x] `buildPendingCancelCard(cancelRow)` — รูป hero + ข้อมูลครบ
+- [x] `buildSupervisorTiebreakerCard(record, kind, typeLabel)` — รับทั้ง movement + count
+- [x] `buildDailyReportCard(report)` — by_type + top 5 products + pending counts
+- [x] `buildWeeklyReportCard(report)` — เพิ่ม counts/returns/claims/cancels summary
+- [x] ทุก card: cherry red header + brand footer + ปุ่มเปิด owner LIFF (`https://liff.line.me/<LIFF_ID_OWNER>`)
+- [x] ใช้ `driveUrlToThumbnail_` แปลง Drive URLs (hero รูปแรก, sz=w800)
+- **Note:** ยังไม่ retrofit handlers (Inbound/Outbound/Adjust/Count/Return/Cancel ยังใช้ text) — จะ retrofit ตอน TASK-22 / TASK-30
 
 ### TASK-21: Report.gs::handleGetDailyReport + handleGetWeeklyReport
 - [ ] daily: รวบ Movements ของวันนี้ (group by movement_type) + summary by_product
