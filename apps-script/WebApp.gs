@@ -98,6 +98,12 @@ function _handleLiffAction_(body) {
         result = handleUpdateClaimStage(payload); break;
       case 'adjustStock':
         result = handleAdjustStock(payload); break; // หลัง count variance — owner กดปรับยอด
+      case 'listUsers':
+        result = handleListUsers(payload); break;
+      case 'addManager':
+        result = handleAddManager(payload); break;
+      case 'removeManager':
+        result = handleRemoveManager(payload); break;
 
       // OWNER report
       case 'getDailyReport':

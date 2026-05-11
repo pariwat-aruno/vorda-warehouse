@@ -137,3 +137,203 @@ function _serializeDate_(v) {
   }
   return v;
 }
+
+// =====================================================================
+// USER MANAGEMENT — owner add/remove owners + supervisors + view staff
+// =====================================================================
+
+const LINE_USER_ID_RE = /^U[0-9a-fA-F]{32}$/;
+
+/**
+ * list ทุกคนที่ใช้ระบบได้
+ *
+ * return: {
+ *   ok, owners: [{ line_user_id, name?, staff_id? }],
+ *   supervisors: [...],
+ *   staff: [{ staff_id, name, line_user_id, role, registered_at }],
+ * }
+ */
+function handleListUsers(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+
+  try {
+    const cfg = getConfig();
+    const staff = _readStaffSheet_();
+    const staffByLineId = {};
+    staff.forEach(function (s) { if (s.line_user_id) staffByLineId[s.line_user_id] = s; });
+
+    function decorate(idList) {
+      return idList.map(function (id) {
+        const s = staffByLineId[id];
+        return {
+          line_user_id: id,
+          name: (s && s.name) || '',
+          staff_id: (s && s.staff_id) || '',
+          registered_at: (s && s.registered_at) || '',
+        };
+      });
+    }
+
+    return {
+      ok: true,
+      owners: decorate(cfg.OWNER_LINE_USER_IDS || []),
+      supervisors: decorate(cfg.SUPERVISOR_LINE_USER_IDS || []),
+      staff: staff,
+    };
+  } catch (err) {
+    logError('handleListUsers', err.message);
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+function _readStaffSheet_() {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const data = sh.getRange(2, 1, last - 1, headers.length).getValues();
+  const out = [];
+  for (let i = 0; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    const r = {};
+    headers.forEach(function (h, j) {
+      const v = data[i][j];
+      r[h] = (v instanceof Date) ? _serializeDate_(v) : v;
+    });
+    out.push(r);
+  }
+  return out;
+}
+
+/**
+ * เพิ่ม manager (owner หรือ supervisor)
+ *
+ * payload: { lineUserId, role: 'owner'|'supervisor', addLineUserId, name? }
+ * (ถ้าใส่ name + lineUserId ยังไม่อยู่ใน Staff → register ให้)
+ */
+function handleAddManager(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const role = String(payload.role || '').toLowerCase();
+  const addId = String(payload.addLineUserId || '').trim();
+  const name = String(payload.name || '').trim();
+
+  if (!lineUserId || !role || !addId) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'role', 'addLineUserId'] };
+  }
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+  if (role !== 'owner' && role !== 'supervisor') {
+    return { ok: false, error: 'invalid_role', valid: ['owner', 'supervisor'] };
+  }
+  if (!LINE_USER_ID_RE.test(addId)) {
+    return { ok: false, error: 'invalid_user_id', message: 'LINE userId ต้องขึ้นต้นด้วย U + 32 ตัวอักษร hex' };
+  }
+
+  try {
+    _setManagerList_(role, addId, true, name);
+    return Object.assign({ ok: true, role: role, addLineUserId: addId, added: true }, handleListUsers({ lineUserId: lineUserId }));
+  } catch (err) {
+    logError('handleAddManager', err.message, { role: role, addId: addId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/**
+ * ลบ manager
+ *
+ * payload: { lineUserId, role, removeLineUserId }
+ *
+ * safety: ห้ามลบ owner คนสุดท้าย (กัน lockout)
+ */
+function handleRemoveManager(payload) {
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const role = String(payload.role || '').toLowerCase();
+  const removeId = String(payload.removeLineUserId || '').trim();
+
+  if (!lineUserId || !role || !removeId) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'role', 'removeLineUserId'] };
+  }
+  if (!isOwner(lineUserId)) return { ok: false, error: 'not_owner' };
+  if (role !== 'owner' && role !== 'supervisor') {
+    return { ok: false, error: 'invalid_role' };
+  }
+
+  try {
+    const cfg = getConfig();
+    if (role === 'owner' && cfg.OWNER_LINE_USER_IDS.length <= 1) {
+      return { ok: false, error: 'last_owner', message: 'ลบ owner คนสุดท้ายไม่ได้ — จะถูก lockout' };
+    }
+    _setManagerList_(role, removeId, false);
+    return Object.assign({ ok: true, role: role, removeLineUserId: removeId, removed: true }, handleListUsers({ lineUserId: lineUserId }));
+  } catch (err) {
+    logError('handleRemoveManager', err.message, { role: role, removeId: removeId });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
+}
+
+/**
+ * helper: เพิ่ม/ลบ userId จาก Sheet Config row + (optional) sync Staff role
+ */
+function _setManagerList_(role, targetId, add, displayName) {
+  const configKey = role === 'owner' ? 'owner_line_user_ids' : 'supervisor_line_user_ids';
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const ss = SpreadsheetApp.openById(sheetId);
+  const sh = ss.getSheetByName('Config');
+  if (!sh) throw new Error('sheet Config not found');
+
+  const last = sh.getLastRow();
+  if (last < 2) throw new Error('Config sheet empty');
+  const data = sh.getRange(2, 1, last - 1, 2).getValues();
+
+  let rowIdx = -1;
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === configKey) { rowIdx = i + 2; break; }
+  }
+  if (rowIdx < 0) {
+    sh.appendRow([configKey, '', 'managed via owner LIFF']);
+    rowIdx = sh.getLastRow();
+  }
+
+  const currentValue = String(sh.getRange(rowIdx, 2).getValue() || '');
+  const ids = currentValue.split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+
+  const has = ids.indexOf(targetId) >= 0;
+  if (add && !has) ids.push(targetId);
+  if (!add && has) ids.splice(ids.indexOf(targetId), 1);
+
+  sh.getRange(rowIdx, 2).setValue(ids.join(','));
+
+  // sync Staff role (auto-register ถ้าจำเป็น)
+  if (add) {
+    autoRegisterStaff_(targetId, displayName || '');
+    _setStaffRole_(targetId, role);
+  } else {
+    _setStaffRole_(targetId, 'staff');
+  }
+
+  clearConfigCache();
+}
+
+/** update Staff.role โดย LINE userId (ถ้ามี row นั้น) */
+function _setStaffRole_(targetId, role) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const luidIdx = headers.indexOf('line_user_id');
+  const roleIdx = headers.indexOf('role');
+  if (luidIdx < 0 || roleIdx < 0) return;
+  const data = sh.getRange(2, luidIdx + 1, last - 1, 1).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === String(targetId)) {
+      sh.getRange(i + 2, roleIdx + 1).setValue(role);
+      return;
+    }
+  }
+}
