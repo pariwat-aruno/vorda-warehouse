@@ -145,16 +145,16 @@ function _handleAdjustRound2_(lineUserId, name, productId, qty, reason, photos, 
   if (s1Qty !== qty) {
     movSh.getRange(rowIdx, statusIdx + 1).setValue('pending_supervisor');
     logWarn('handleSubmitAdjust', 'round2 mismatch', { movementId: pairingMovementId, s1: s1Qty, s2: qty });
-    safePushToAllSupervisors_([{
-      type: 'text',
-      text:
-        '⚠️ นับไม่ตรง — ขอตัดสิน\n' +
-        'รหัส: ' + pairingMovementId + ' (ตัดสต๊อก)\n' +
-        'สินค้า: ' + productName + '\n' +
-        'เหตุผล: ' + reason + '\n' +
-        'คนนับ 1 (' + s1Name + '): ' + s1Qty + '\n' +
-        'คนนับ 2 (' + name + '): ' + qty,
-    }], 'handleSubmitAdjust');
+    safePushToAllSupervisors_([buildSupervisorTiebreakerCard({
+      movement_id: pairingMovementId,
+      product_name: productName,
+      reason: reason,
+      submitter1_name: s1Name,
+      submitter1_qty: s1Qty,
+      submitter2_name: name,
+      submitter2_qty: qty,
+      photo_urls: combined,
+    }, 'movement', 'ตัดสต๊อก')], 'handleSubmitAdjust');
     return {
       ok: true,
       movementId: pairingMovementId,

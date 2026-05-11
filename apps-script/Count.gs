@@ -156,16 +156,16 @@ function _handleCountRound2_(lineUserId, name, productId, qty, photos, pairingCo
     // ไม่ตรง → pending_supervisor
     sh.getRange(rowIdx, statusIdx + 1).setValue('pending_supervisor');
     logWarn('handleSubmitCount', 'round2 mismatch', { countId: pairingCountId, s1: s1Qty, s2: qty });
-    safePushToAllSupervisors_([{
-      type: 'text',
-      text:
-        '⚠️ นับเทียบไม่ตรง — ขอตัดสิน\n' +
-        'รหัส: ' + pairingCountId + ' (นับเทียบ)\n' +
-        'สินค้า: ' + productName + '\n' +
-        'ยอดในระบบ: ' + systemQty + '\n' +
-        'คนนับ 1 (' + s1Name + '): ' + s1Qty + '\n' +
-        'คนนับ 2 (' + name + '): ' + qty,
-    }], 'handleSubmitCount');
+    safePushToAllSupervisors_([buildSupervisorTiebreakerCard({
+      count_id: pairingCountId,
+      product_name: productName,
+      system_qty: systemQty,
+      submitter1_name: s1Name,
+      submitter1_qty: s1Qty,
+      submitter2_name: name,
+      submitter2_qty: qty,
+      photo_urls: combined,
+    }, 'count', 'นับเทียบ')], 'handleSubmitCount');
     return {
       ok: true,
       countId: pairingCountId,
@@ -214,18 +214,13 @@ function _handleCountRound2_(lineUserId, name, productId, qty, photos, pairingCo
     final_qty: finalQty, system_qty: systemQty, variance: variance,
   });
 
-  const varianceStr = (variance > 0 ? '+' : '') + variance;
-  safePushToAllOwners_([{
-    type: 'text',
-    text:
-      '⚠️ นับเทียบไม่ตรงระบบ — รอปรับยอด\n' +
-      'รหัส: ' + pairingCountId + '\n' +
-      'สินค้า: ' + productName + '\n' +
-      'ยอดในระบบ: ' + systemQty + '\n' +
-      'ยอดนับจริง: ' + finalQty + '\n' +
-      'ส่วนต่าง: ' + varianceStr + '\n' +
-      'กด "ปรับยอด" ใน LIFF เจ้าของ',
-  }], 'handleSubmitCount');
+  safePushToAllOwners_([buildVarianceAlertCard({
+    count_id: pairingCountId,
+    product_name: productName,
+    system_qty: systemQty,
+    final_qty: finalQty,
+    variance: variance,
+  })], 'handleSubmitCount');
 
   return {
     ok: true,
@@ -469,19 +464,13 @@ function _tiebreakerCount_(lineUserId, name, countId, qty, photos) {
   logWarn('handleSupervisorTiebreaker', 'count resolved awaiting_owner', {
     countId: countId, final_qty: finalQty, system_qty: systemQty, variance: variance,
   });
-  const varianceStr = (variance > 0 ? '+' : '') + variance;
-  safePushToAllOwners_([{
-    type: 'text',
-    text:
-      '⚠️ นับเทียบไม่ตรงระบบ (หัวหน้าตัดสิน) — รอปรับยอด\n' +
-      'รหัส: ' + countId + '\n' +
-      'สินค้า: ' + productName + '\n' +
-      'ยอดในระบบ: ' + systemQty + '\n' +
-      'ยอดนับจริง: ' + finalQty + '\n' +
-      'ส่วนต่าง: ' + varianceStr + '\n' +
-      'ตัดสินโดย: ' + name + '\n' +
-      'กด "ปรับยอด" ใน LIFF เจ้าของ',
-  }], 'handleSupervisorTiebreaker');
+  safePushToAllOwners_([buildVarianceAlertCard({
+    count_id: countId,
+    product_name: productName,
+    system_qty: systemQty,
+    final_qty: finalQty,
+    variance: variance,
+  })], 'handleSupervisorTiebreaker');
 
   return {
     ok: true,

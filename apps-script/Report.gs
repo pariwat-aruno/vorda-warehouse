@@ -17,29 +17,27 @@
 function handleGetDailyReport(payload) {
   payload = payload || {};
   const lineUserId = payload.lineUserId;
-  const date = payload.date || todayBangkok();
-
   if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
-  // ให้ owner หรือ supervisor ดูได้ทั้งคู่ (รายงานนี้ใช้ภายใน)
   if (!isOwner(lineUserId) && !isSupervisor(lineUserId)) {
     return { ok: false, error: 'not_authorized' };
   }
-
   try {
-    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-    const ss = SpreadsheetApp.openById(sheetId);
-
-    const report = _aggregateMovements_(ss, function (createdAt) {
-      return _datePartBangkok_(createdAt) === date;
-    });
-
-    const pending = _pendingCounts_(ss);
-
-    return Object.assign({ ok: true, date: date }, report, { pending: pending });
+    return Object.assign({ ok: true }, _buildDailyReportData_(payload.date || todayBangkok()));
   } catch (err) {
-    logError('handleGetDailyReport', err.message, { date: date });
+    logError('handleGetDailyReport', err.message, {});
     return { ok: false, error: 'server_error', message: err.message };
   }
+}
+
+/** สร้าง report payload สำหรับวันที่ระบุ (ไม่มี auth check — internal) */
+function _buildDailyReportData_(date) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const ss = SpreadsheetApp.openById(sheetId);
+  const report = _aggregateMovements_(ss, function (createdAt) {
+    return _datePartBangkok_(createdAt) === date;
+  });
+  const pending = _pendingCounts_(ss);
+  return Object.assign({ date: date }, report, { pending: pending });
 }
 
 /** Owner ขอรายงานรายสัปดาห์
@@ -49,41 +47,34 @@ function handleGetDailyReport(payload) {
 function handleGetWeeklyReport(payload) {
   payload = payload || {};
   const lineUserId = payload.lineUserId;
-  const targetWeek = payload.week || thisWeekBangkok();
-
   if (!lineUserId) return { ok: false, error: 'missing_params', need: ['lineUserId'] };
   if (!isOwner(lineUserId) && !isSupervisor(lineUserId)) {
     return { ok: false, error: 'not_authorized' };
   }
-
   try {
-    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-    const ss = SpreadsheetApp.openById(sheetId);
-
-    // movements
-    const movement = _aggregateMovements_(ss, function (createdAt) {
-      return _weekPartBangkok_(createdAt) === targetWeek;
-    });
-
-    // counts ของสัปดาห์
-    const counts = _aggregateCounts_(ss, function (createdAt) {
-      return _weekPartBangkok_(createdAt) === targetWeek;
-    });
-
-    // returns / claims / cancels ของสัปดาห์
-    const returns = _aggregateReturnsCancels_(ss, 'Returns', 'created_at', 'status', targetWeek);
-    const cancels = _aggregateReturnsCancels_(ss, 'Cancellations', 'created_at', 'status', targetWeek);
-    const claims = _aggregateClaims_(ss, targetWeek);
-
-    return Object.assign(
-      { ok: true, week: targetWeek },
-      movement,
-      { counts: counts, returns: returns, cancels: cancels, claims: claims }
-    );
+    return Object.assign({ ok: true }, _buildWeeklyReportData_(payload.week || thisWeekBangkok()));
   } catch (err) {
-    logError('handleGetWeeklyReport', err.message, { week: targetWeek });
+    logError('handleGetWeeklyReport', err.message, {});
     return { ok: false, error: 'server_error', message: err.message };
   }
+}
+
+/** internal — สร้าง weekly report data */
+function _buildWeeklyReportData_(targetWeek) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const ss = SpreadsheetApp.openById(sheetId);
+  const movement = _aggregateMovements_(ss, function (createdAt) {
+    return _weekPartBangkok_(createdAt) === targetWeek;
+  });
+  const counts = _aggregateCounts_(ss, function (createdAt) {
+    return _weekPartBangkok_(createdAt) === targetWeek;
+  });
+  const returns = _aggregateReturnsCancels_(ss, 'Returns', 'created_at', 'status', targetWeek);
+  const cancels = _aggregateReturnsCancels_(ss, 'Cancellations', 'created_at', 'status', targetWeek);
+  const claims = _aggregateClaims_(ss, targetWeek);
+  return Object.assign({ week: targetWeek }, movement, {
+    counts: counts, returns: returns, cancels: cancels, claims: claims,
+  });
 }
 
 // =====================================================================
@@ -309,14 +300,38 @@ function installTriggers() {
   console.log('triggers installed: daily 18:00 + weekly Saturday 18:10');
 }
 
-/** เรียกโดย trigger 18:00 ทุกวัน */
+/** เรียกโดย trigger 18:00 ทุกวัน — push flex card หา managers (owner + supervisor) */
 function sendDailyReport() {
-  // TODO: รวบยอดวันนี้ + push LINE หัวหน้า + owner
-  logInfo('sendDailyReport', 'fired');
+  try {
+    const data = _buildDailyReportData_(todayBangkok());
+    const card = buildDailyReportCard(data);
+    safePushToAllManagers_([card], 'sendDailyReport');
+    logInfo('sendDailyReport', 'sent', {
+      date: data.date,
+      by_type: data.by_type,
+      products: data.by_product.length,
+    });
+  } catch (err) {
+    logError('sendDailyReport', err.message);
+  }
 }
 
-/** เรียกโดย trigger เสาร์ 18:10 */
+/** เรียกโดย trigger เสาร์ 18:10 — push flex card หา owners */
 function sendWeeklyReport() {
-  // TODO: รวบยอดสัปดาห์ + push LINE owner
-  logInfo('sendWeeklyReport', 'fired');
+  try {
+    const data = _buildWeeklyReportData_(thisWeekBangkok());
+    const card = buildWeeklyReportCard(data);
+    safePushToAllOwners_([card], 'sendWeeklyReport');
+    logInfo('sendWeeklyReport', 'sent', {
+      week: data.week,
+      by_type: data.by_type,
+      products: data.by_product.length,
+    });
+  } catch (err) {
+    logError('sendWeeklyReport', err.message);
+  }
 }
+
+/** test functions — call directly เพื่อทดสอบไม่ต้องรอ trigger */
+function testSendDailyReport() { sendDailyReport(); }
+function testSendWeeklyReport() { sendWeeklyReport(); }

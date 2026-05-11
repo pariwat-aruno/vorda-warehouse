@@ -75,17 +75,14 @@ function handleSubmitCancel(payload) {
       cancelId: cancelId, trackingNumber: trackingNumber, productId: productId, qty: qty,
     });
 
-    safePushToAllOwners_([{
-      type: 'text',
-      text:
-        '⚠️ ยกเลิกออเดอร์รอ approve\n' +
-        'รหัส: ' + cancelId + '\n' +
-        'tracking: ' + trackingNumber + '\n' +
-        'สินค้า: ' + productName + '\n' +
-        'จำนวน: ' + qty + ' ชิ้น\n' +
-        'พนักงาน: ' + name + '\n' +
-        'กด approve ใน LIFF เจ้าของ',
-    }], 'handleSubmitCancel');
+    safePushToAllOwners_([buildPendingCancelCard({
+      cancel_id: cancelId,
+      tracking_number: trackingNumber,
+      product_name: productName,
+      qty: qty,
+      photo_urls: photoUrls.join(','),
+      staff_name: name,
+    })], 'handleSubmitCancel');
 
     return {
       ok: true,

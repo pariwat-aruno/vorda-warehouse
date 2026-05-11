@@ -110,20 +110,17 @@ function handleSubmitReturn(payload) {
       isOurProduct: isOurProduct, condition: condition,
     });
 
-    safePushToAllOwners_([{
-      type: 'text',
-      text:
-        '⚠️ ตีคืนรอ approve\n' +
-        'รหัส: ' + returnId + '\n' +
-        'tracking: ' + trackingNumber + '\n' +
-        'สินค้า: ' + (finalProductName || '(ไม่ใช่ของเรา)') + '\n' +
-        'จำนวน: ' + qty + ' ชิ้น\n' +
-        'สภาพ: ' + (condition === 'good' ? 'ดี' : 'ไม่ดี') + '\n' +
-        'ของเรา: ' + (isOurProduct ? 'ใช่' : 'ไม่ใช่') + '\n' +
-        'VDO: ' + videoUrl + '\n' +
-        'พนักงาน: ' + name + '\n' +
-        'กด approve ใน LIFF เจ้าของ',
-    }], 'handleSubmitReturn');
+    safePushToAllOwners_([buildPendingReturnCard({
+      return_id: returnId,
+      tracking_number: trackingNumber,
+      product_name: finalProductName,
+      qty: qty,
+      is_our_product: isOurProduct,
+      condition: condition,
+      video_url: videoUrl,
+      photo_urls: photoUrls.join(','),
+      staff_name: name,
+    })], 'handleSubmitReturn');
 
     return {
       ok: true,

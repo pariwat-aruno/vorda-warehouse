@@ -150,15 +150,15 @@ function _handleOutboundRound2_(lineUserId, name, productId, qty, photos, pairin
     logWarn('handleSubmitOutbound', 'round2 mismatch', {
       movementId: pairingMovementId, s1: s1Qty, s2: qty,
     });
-    safePushToAllSupervisors_([{
-      type: 'text',
-      text:
-        '⚠️ นับไม่ตรง — ขอตัดสิน\n' +
-        'รหัส: ' + pairingMovementId + ' (หยิบออก)\n' +
-        'สินค้า: ' + productName + '\n' +
-        'คนนับ 1 (' + s1Name + '): ' + s1Qty + '\n' +
-        'คนนับ 2 (' + name + '): ' + qty,
-    }], 'handleSubmitOutbound');
+    safePushToAllSupervisors_([buildSupervisorTiebreakerCard({
+      movement_id: pairingMovementId,
+      product_name: productName,
+      submitter1_name: s1Name,
+      submitter1_qty: s1Qty,
+      submitter2_name: name,
+      submitter2_qty: qty,
+      photo_urls: combined,
+    }, 'movement', 'หยิบออก')], 'handleSubmitOutbound');
     return {
       ok: true,
       movementId: pairingMovementId,

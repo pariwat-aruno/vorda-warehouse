@@ -255,9 +255,17 @@
 - **Acceptance:** ⏳ test ผ่าน LIFF ตอน TASK-30 / verify ผ่าน LINE owner command
 
 ### TASK-22: Report.gs::sendDailyReport + sendWeeklyReport (scheduled)
-- [ ] sendDailyReport: เรียก handleGetDailyReport + buildDailyReportCard + pushToAllManagers
-- [ ] sendWeeklyReport: เรียก handleGetWeeklyReport + buildWeeklyReportCard + pushToAllOwners
-- [ ] เพิ่ม `installTriggers()` ในชุด setup (ถ้ายังไม่ได้รัน)
+- [x] sendDailyReport: `_buildDailyReportData_()` + `buildDailyReportCard()` + `safePushToAllManagers_`
+- [x] sendWeeklyReport: `_buildWeeklyReportData_()` + `buildWeeklyReportCard()` + `safePushToAllOwners_`
+- [x] refactor: ดึง data builder ออกจาก handler (internal `_buildXxxReportData_`) เพื่อให้ trigger เรียกได้ไม่ต้อง auth
+- [x] `installTriggers()` มีอยู่แล้ว (จะรันใน TASK-36)
+- [x] test wrappers: `testSendDailyReport()`, `testSendWeeklyReport()`
+- [x] **retrofit flex cards ใน handlers:**
+  - Inbound/Outbound/Adjust mismatch → `buildSupervisorTiebreakerCard(record, 'movement', label)`
+  - Count mismatch → `buildSupervisorTiebreakerCard(record, 'count', 'นับเทียบ')`
+  - Count awaiting_owner (รอบ 2 + tiebreaker path) → `buildVarianceAlertCard()`
+  - submitReturn → `buildPendingReturnCard()`
+  - submitCancel → `buildPendingCancelCard()`
 
 ---
 

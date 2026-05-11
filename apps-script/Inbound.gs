@@ -192,15 +192,15 @@ function _handleInboundRound2_(lineUserId, name, productId, qty, photos, pairing
     movementId: pairingMovementId, productId: productId, s1: s1Qty, s2: qty,
   });
 
-  safePushToAllSupervisors_([{
-    type: 'text',
-    text:
-      '⚠️ นับไม่ตรง — ขอตัดสิน\n' +
-      'รหัส: ' + pairingMovementId + ' (รับเข้า)\n' +
-      'สินค้า: ' + productName + '\n' +
-      'คนนับ 1 (' + s1Name + '): ' + s1Qty + '\n' +
-      'คนนับ 2 (' + name + '): ' + qty,
-  }], 'handleSubmitInbound');
+  safePushToAllSupervisors_([buildSupervisorTiebreakerCard({
+    movement_id: pairingMovementId,
+    product_name: productName,
+    submitter1_name: s1Name,
+    submitter1_qty: s1Qty,
+    submitter2_name: name,
+    submitter2_qty: qty,
+    photo_urls: combined,
+  }, 'movement', 'รับเข้า')], 'handleSubmitInbound');
 
   return {
     ok: true,
