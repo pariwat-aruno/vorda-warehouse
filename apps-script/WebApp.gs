@@ -180,7 +180,7 @@ function _handleFollowEvent_(event) {
   const replyToken = event.replyToken;
   replyText(replyToken,
     'ยินดีต้อนรับสู่ระบบคลัง Vorda\n' +
-    'หากเป็นเจ้าของหรือหัวหน้า กรุณาส่ง LINE userId นี้ให้ admin เพื่อเพิ่มสิทธิ์'
+    'หากเป็นเจ้าของหรือหัวหน้า กรุณาส่ง LINE userId นี้ให้เจ้าของระบบเพื่อเพิ่มสิทธิ์'
   );
   logInfo('_handleFollowEvent_', 'new follower', { userId: userId });
 }

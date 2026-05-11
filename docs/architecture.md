@@ -13,7 +13,7 @@ graph TD
     OWNER[เจ้าของ 2 คน<br/>เปิด LINE]
 
     LIFF_S[Staff LIFF<br/>inbound/outbound/<br/>count/adjust/return/cancel]
-    LIFF_A[Owner LIFF<br/>admin.html]
+    LIFF_A[Owner LIFF<br/>owner.html]
 
     APPS[Apps Script<br/>Web App API<br/>+ scheduled triggers]
     SHEET[(Google Sheet<br/>10 tabs)]
@@ -77,7 +77,7 @@ graph TD
 | 9a | ตรง: คำนวณ variance = final_qty − system_qty | Apps Script | — | — |
 | 9b | variance === 0 → status=no_action | Apps Script | — | Sheet + LINE manager (info) |
 | 9c | variance ≠ 0 → status=awaiting_owner | Apps Script | — | Sheet + LINE owner (alert) |
-| 10 | (ถ้า 9c) owner เปิด admin LIFF + กด "ปรับยอด" | owner | countId, deltaQty=variance, reason | LIFF |
+| 10 | (ถ้า 9c) owner เปิด owner LIFF + กด "ปรับยอด" | owner | countId, deltaQty=variance, reason | LIFF |
 | 11 | adjustStock → insert Movement (adjust) → apply Stock | Apps Script | — | Sheet |
 | 12 | update count: status=resolved_by_adjust | Apps Script | — | Sheet |
 
@@ -96,7 +96,7 @@ graph TD
 | 3 | submit | LIFF | action=submitReturn | Apps Script |
 | 4 | upload VDO + รูป → insert Returns (status=pending_owner) | Apps Script | — | Sheet + Drive |
 | 5 | push owner flex card (มี VDO + ปุ่ม) | Apps Script | — | LINE owner |
-| 6 | owner เปิด admin LIFF | owner | — | LIFF |
+| 6 | owner เปิด owner LIFF | owner | — | LIFF |
 | 7a | decision=accept_to_stock (good + ของเรา) | owner → Apps Script | returnId | LIFF → API |
 |   | → insert Movement (return_in, +qty) → apply Stock → status=accepted | Apps Script | — | Sheet |
 | 7b | decision=reject_bad (ของเรา + bad) | owner | — | — |
@@ -115,7 +115,7 @@ graph TD
 | 2 | พนักงานบันทึก: tracking + product + qty + รูป | staff | — | LIFF cancel |
 | 3 | submit | LIFF | action=submitCancel | Apps Script |
 | 4 | insert Cancellations (status=pending_owner) → push owner | Apps Script | — | Sheet + LINE |
-| 5 | owner กด accept/reject ใน admin LIFF | owner | cancelId, decision | LIFF → API |
+| 5 | owner กด accept/reject ใน owner LIFF | owner | cancelId, decision | LIFF → API |
 | 6a | accept → insert Movement (cancel_in, +qty) → apply Stock → status=accepted | Apps Script | — | Sheet |
 | 6b | reject → status=rejected | Apps Script | — | Sheet |
 

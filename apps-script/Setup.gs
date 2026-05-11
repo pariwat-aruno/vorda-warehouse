@@ -441,14 +441,14 @@ function setupProperties() {
 
   const NON_SECRET_PROPS = {
     // ID ของ LIFF apps ที่สร้างใน LINE Developers console
-    // หลัง LINE channel + LIFF apps สร้างแล้ว → แก้ค่าตรงนี้แล้วรัน setupProperties() อีกครั้ง
-    'LIFF_ID_INBOUND': '',
-    'LIFF_ID_OUTBOUND': '',
-    'LIFF_ID_COUNT': '',
-    'LIFF_ID_ADJUST': '',
-    'LIFF_ID_RETURN': '',
-    'LIFF_ID_CANCEL': '',
-    'LIFF_ID_ADMIN': '',
+    // LIFF IDs ไม่ใช่ secret (อยู่ใน URL `https://liff.line.me/<id>` อยู่แล้ว) — committed ใน git ได้
+    'LIFF_ID_INBOUND':  '2010039913-l3str31E',
+    'LIFF_ID_OUTBOUND': '2010039913-qEVDVQCK',
+    'LIFF_ID_COUNT':    '2010039913-Mwxbowp7',
+    'LIFF_ID_ADJUST':   '2010039913-Qh70XgVu',
+    'LIFF_ID_RETURN':   '2010039913-pbFfeqN5',
+    'LIFF_ID_CANCEL':   '2010039913-qn27hLz0',
+    'LIFF_ID_OWNER':    '2010039913-nqodMLew',
   };
 
   const empty = [];

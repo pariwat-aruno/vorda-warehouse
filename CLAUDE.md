@@ -78,7 +78,7 @@ vorda-warehouse/
 │   ├── adjust.html         # ตัดสต๊อก (staff)
 │   ├── return.html         # ตีคืน (staff) — มี VDO recording
 │   ├── cancel.html         # ยกเลิก (staff)
-│   └── admin.html          # owner LIFF — dashboard + approve + claim flow
+│   └── owner.html          # owner LIFF — dashboard + approve + claim flow
 └── scripts/
     └── setup_rich_menu.py  # generate image + upload via LINE API
 ```
@@ -93,7 +93,7 @@ vorda-warehouse/
 
 ### Phase 2 — LINE Channel + LIFF
 - ผู้ใช้สร้าง: LINE OA + Messaging API channel
-- สร้าง LIFF apps **7 ตัว** (inbound/outbound/count/adjust/return/cancel/admin)
+- สร้าง LIFF apps **7 ตัว** (inbound/outbound/count/adjust/return/cancel/owner)
 - Claude เขียน `setup_rich_menu.py` (4 ปุ่มหลัก: รับเข้า / หยิบออก / นับเทียบ / รายการอื่นๆ)
 - ขอ: LINE_CHANNEL_ACCESS_TOKEN + LINE_CHANNEL_SECRET + 7 LIFF_IDs
 
@@ -112,7 +112,7 @@ vorda-warehouse/
 - ทุก supervisor-only endpoint: `if (!isSupervisor(payload.lineUserId)) return { ok: false, error: 'not_supervisor' };`
 
 ### Phase 5 — LIFF frontend (TASK 23-30)
-- เขียน 8 HTML files (myid + 6 staff + admin)
+- เขียน 8 HTML files (myid + 6 staff + owner)
 - ใช้ shared CSS + JS modules (config / api / auth / utils / camera)
 - ทุกหน้ามี: logo + brand text + footer brand
 - กล้อง: `startCamera` + `captureFromVideoWithStamp` (ฝัง timestamp) — ห้าม `<input type=file>` แม้มี `capture` (iOS บางรุ่นเลี่ยงได้)
@@ -211,9 +211,9 @@ clasp create-version "<desc>"            # สร้าง immutable version sna
 - รับสรุปรายวัน 18:00 + รายสัปดาห์ เสาร์ 18:10
 
 ### Frontend ห้ามเชื่อเอง
-- พนักงานเปิด admin LIFF ได้ (block ไม่ได้ ระดับ LIFF)
+- พนักงานเปิด owner LIFF ได้ (block ไม่ได้ ระดับ LIFF)
 - backend `isOwner()` คือ authoritative
-- LIFF admin frontend: catch `not_owner` → แสดง error message
+- LIFF owner frontend: catch `not_owner` → แสดง error message
 
 ```js
 // ทุก owner action
@@ -273,6 +273,6 @@ print(urllib.request.urlopen(req).read().decode())
 - ❌ Lot number / วันหมดอายุ / ที่เก็บในคลัง
 - ❌ มากกว่า 5 SKU (ถ้าจะเพิ่ม → re-design)
 - ❌ Multi-warehouse / หลายคลัง
-- ❌ Real-time dashboard (ดูได้ใน admin LIFF — ไม่ใช่ live update)
+- ❌ Real-time dashboard (ดูได้ใน owner LIFF — ไม่ใช่ live update)
 
 ถ้าผู้ใช้ขอเหล่านี้ → ตอบ "ออก scope mini-app — Phase 2"

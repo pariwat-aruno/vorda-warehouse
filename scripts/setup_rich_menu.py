@@ -10,7 +10,7 @@ setup_rich_menu.py — สร้าง + อัปโหลด rich menu ขอ�
 idempotent: ถ้าเจอ rich menu ชื่อ "vorda-warehouse-main" อยู่แล้วจะลบทิ้งก่อน
 
 Layout (2500x843, 4 cells):
-  [รับเข้า] [หยิบออก] [รายการอื่น] [Admin]
+  [รับเข้า] [หยิบออก] [รายการอื่น] [เจ้าของ]
 
 โน้ต: "รายการอื่น" เปิด LIFF index.html ที่มี 4 ปุ่มย่อย (count/adjust/return/cancel)
 แทนที่จะใส่ทุกปุ่มใน rich menu (rich menu มีพื้นที่จำกัด)
@@ -24,11 +24,11 @@ import urllib.request
 
 from PIL import Image, ImageDraw, ImageFont
 
-# ----- CONFIG — แก้ LIFF IDs ให้ตรงกับที่สร้างใน LINE Developers -----
-LIFF_INBOUND  = "REPLACE_ME"  # LIFF_ID_INBOUND
-LIFF_OUTBOUND = "REPLACE_ME"  # LIFF_ID_OUTBOUND
-LIFF_INDEX    = "REPLACE_ME"  # LIFF ID ของ index.html (จะใส่ shared = LIFF_ID_INBOUND ก็ได้ถ้าไม่อยากสร้างเพิ่ม)
-LIFF_ADMIN    = "REPLACE_ME"  # LIFF_ID_ADMIN
+# ----- CONFIG — LIFF IDs ของ vorda-warehouse -----
+LIFF_INBOUND  = "2010039913-l3str31E"  # LIFF_ID_INBOUND
+LIFF_OUTBOUND = "2010039913-qEVDVQCK"  # LIFF_ID_OUTBOUND
+LIFF_INDEX    = "2010039913-l3str31E"  # shared กับ inbound (index.html ยังไม่มี LIFF แยก)
+LIFF_OWNER    = "2010039913-nqodMLew"  # LIFF_ID_OWNER
 
 MENU_NAME = "vorda-warehouse-main"
 IMAGE_PATH = os.path.join(os.path.dirname(__file__), "rich_menu.png")
@@ -39,12 +39,12 @@ WIDTH = 2500
 HEIGHT = 843
 
 # cherry red palette — บริษัท วอร์ด้า สกินแคร์ จำกัด
-# 4 sections — ปุ่ม Admin ขวาสุด สีเข้มเพื่อแยกชัด
+# 4 sections — ปุ่มเจ้าของขวาสุด สีเข้มเพื่อแยกชัด
 SECTIONS = [
     {"label": "รับเข้า",     "sublabel": "จากโรงงาน",     "color": (200, 16, 46),  "liff": LIFF_INBOUND},
     {"label": "หยิบออก",     "sublabel": "ไปแพคส่ง",      "color": (200, 16, 46),  "liff": LIFF_OUTBOUND},
     {"label": "รายการอื่น",  "sublabel": "นับ/ตัด/คืน",   "color": (154, 12, 36),  "liff": LIFF_INDEX},
-    {"label": "Admin",       "sublabel": "เจ้าของเท่านั้น","color": (55, 65, 81),   "liff": LIFF_ADMIN},
+    {"label": "เจ้าของ",     "sublabel": "ผู้บริหารเท่านั้น","color": (55, 65, 81),   "liff": LIFF_OWNER},
 ]
 
 LINE_API = "https://api.line.me/v2/bot"

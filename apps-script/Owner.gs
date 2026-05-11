@@ -1,5 +1,5 @@
 /**
- * Owner.gs — endpoints สำหรับ owner LIFF (admin.html)
+ * Owner.gs — endpoints สำหรับ owner LIFF (owner.html)
  *
  * ทุก function เริ่มด้วย `if (!isOwner(payload.lineUserId)) return { ok:false, error:'not_owner' }`
  *

@@ -20,7 +20,7 @@ function getConfig() {
 
   // LIFF apps ของ vorda-warehouse — 7 ตัว
   // staff: inbound / outbound / count / adjust / return / cancel
-  // owner: admin
+  // owner: owner
   const required = [
     'SHEET_ID',
     'DRIVE_FOLDER_ID',
@@ -31,7 +31,7 @@ function getConfig() {
     'LIFF_ID_ADJUST',
     'LIFF_ID_RETURN',
     'LIFF_ID_CANCEL',
-    'LIFF_ID_ADMIN',
+    'LIFF_ID_OWNER',
   ];
 
   const cfg = {};

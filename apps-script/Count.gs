@@ -4,7 +4,7 @@
  * ต่างจาก Inbound/Outbound:
  *   - ไม่ apply ไป Stock โดยอัตโนมัติ (ผลนับ ≠ การเปลี่ยนแปลง)
  *   - บันทึก variance = final_qty - system_qty
- *   - ถ้า variance ≠ 0 → push LINE owner รอกดปุ่ม "ปรับยอด" ใน admin LIFF
+ *   - ถ้า variance ≠ 0 → push LINE owner รอกดปุ่ม "ปรับยอด" ใน owner LIFF
  *   - owner กดปรับยอด → adjustStock → insert Movement (movement_type='adjust')
  *
  * Flow:

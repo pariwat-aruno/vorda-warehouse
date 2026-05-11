@@ -12,16 +12,16 @@ export const CONFIG = {
 
   // LIFF IDs — 7 apps (1 ID ต่อ 1 หน้า)
   // staff
-  LIFF_ID_INBOUND: '__REPLACE_ME__',  // inbound.html
-  LIFF_ID_OUTBOUND: '__REPLACE_ME__', // outbound.html
-  LIFF_ID_COUNT: '__REPLACE_ME__',    // count.html
-  LIFF_ID_ADJUST: '__REPLACE_ME__',   // adjust.html
-  LIFF_ID_RETURN: '__REPLACE_ME__',   // return.html
-  LIFF_ID_CANCEL: '__REPLACE_ME__',   // cancel.html
+  LIFF_ID_INBOUND:  '2010039913-l3str31E',  // inbound.html
+  LIFF_ID_OUTBOUND: '2010039913-qEVDVQCK',  // outbound.html
+  LIFF_ID_COUNT:    '2010039913-Mwxbowp7',  // count.html
+  LIFF_ID_ADJUST:   '2010039913-Qh70XgVu',  // adjust.html
+  LIFF_ID_RETURN:   '2010039913-pbFfeqN5',  // return.html
+  LIFF_ID_CANCEL:   '2010039913-qn27hLz0',  // cancel.html
   // owner
-  LIFF_ID_ADMIN: '__REPLACE_ME__',    // admin.html
-  // helper (ไม่ต้องสร้าง — ใช้ ID เดียวกับ inbound ก็ได้ ไม่ critical)
-  LIFF_ID_MYID: '__REPLACE_ME__',     // myid.html — แสดง LINE userId
+  LIFF_ID_OWNER:    '2010039913-nqodMLew',  // owner.html
+  // helper (ไม่ต้องสร้าง LIFF แยก — ใช้ ID เดียวกับ inbound)
+  LIFF_ID_MYID:     '2010039913-l3str31E',  // myid.html — แสดง LINE userId
 
   // Brand
   BRAND_NAME: 'Vorda Warehouse',

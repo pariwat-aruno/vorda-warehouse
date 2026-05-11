@@ -66,7 +66,7 @@
 - **Acceptance:** Properties มี 2 ค่านี้ ✅ (LINE bot ทดสอบ webhook ทีหลัง TASK-31)
 
 ### TASK-05: สร้าง LIFF apps 7 ตัว
-- [ ] LINE Developers → Channel → LIFF tab → Add LIFF app × 7:
+- [x] LINE Developers → Channel → LIFF tab → Add LIFF app × 7:
 
 | LIFF | Endpoint URL (placeholder ก่อน) | Size | Scope | Bot link |
 |---|---|---|---|---|
@@ -76,11 +76,20 @@
 | adjust | `.../adjust.html` | Full | profile, openid | Aggressive |
 | return | `.../return.html` | Full | profile, openid | Aggressive |
 | cancel | `.../cancel.html` | Full | profile, openid | Aggressive |
-| admin | `.../admin.html` | Full | profile, openid | Aggressive |
+| owner | `.../owner.html` | Full | profile, openid | Aggressive |
 
-- [ ] copy 7 LIFF IDs
-- [ ] แก้ `Setup.gs::setupProperties()` ใส่ LIFF_ID_* ทั้ง 7 → รัน `setupProperties()` อีกครั้ง
-- **Acceptance:** Properties มี LIFF_ID_INBOUND/OUTBOUND/COUNT/ADJUST/RETURN/CANCEL/ADMIN
+- [x] copy 7 LIFF IDs
+- [x] แก้ `Setup.gs::setupProperties()` ใส่ LIFF_ID_* ทั้ง 7 → รัน `setupProperties()` อีกครั้ง
+- [x] rename admin → owner ทั้ง project (file/property/doc) + LIFF endpoint URL
+- **Acceptance:** Properties มี LIFF_ID_INBOUND/OUTBOUND/COUNT/ADJUST/RETURN/CANCEL/OWNER ✅
+- **LIFF IDs:**
+  - inbound:  `2010039913-l3str31E`
+  - outbound: `2010039913-qEVDVQCK`
+  - count:    `2010039913-Mwxbowp7`
+  - adjust:   `2010039913-Qh70XgVu`
+  - return:   `2010039913-pbFfeqN5`
+  - cancel:   `2010039913-qn27hLz0`
+  - owner:    `2010039913-nqodMLew`
 
 ### TASK-06: เก็บ owner + supervisor LINE userId
 - [ ] เปิด `liff/myid.html` ผ่าน LIFF inbound (หรือ LIFF ใดก็ได้ — myid ไม่ต้องสร้าง LIFF แยก)
@@ -142,7 +151,7 @@
 - [ ] รอบ 2: match → final_qty = submitter1_qty (ถ้าตรง)
   - variance = final_qty - system_qty
   - ถ้า variance === 0 → status='no_action' + push LINE manager
-  - ถ้า variance ≠ 0 → status='awaiting_owner' + pushToAllManagers พร้อมปุ่มไป admin LIFF
+  - ถ้า variance ≠ 0 → status='awaiting_owner' + pushToAllManagers พร้อมปุ่มไป owner LIFF
 - [ ] กรณีไม่ตรง → pending_supervisor (เหมือน movement)
 - **Acceptance:** owner ได้ alert เฉพาะ variance ≠ 0
 
@@ -213,7 +222,7 @@
 - [ ] `buildSupervisorTiebreakerCard(record)` — ขอหัวหน้าตัดสิน
 - [ ] `buildDailyReportCard(report)`
 - [ ] `buildWeeklyReportCard(report)`
-- [ ] ทุก card: header มี logo + brand, footer brand, ปุ่มเปิด admin LIFF
+- [ ] ทุก card: header มี logo + brand, footer brand, ปุ่มเปิด owner LIFF
 - [ ] ใช้ `driveUrlToThumbnail_` แปลง Drive URLs
 
 ### TASK-21: Report.gs::handleGetDailyReport + handleGetWeeklyReport
@@ -233,7 +242,7 @@
 - [ ] หน้าแรกหลังเปิด rich menu
 - [ ] แสดง 6 ปุ่มหลัก (รับเข้า / หยิบออก / นับเทียบ / ตัดสต๊อก / ตีคืน / ยกเลิก)
 - [ ] แต่ละปุ่ม: `liff.openWindow({ url: '<page>.html', external: false })` หรือ link ตรง
-- [ ] ปุ่ม admin โผล่เฉพาะ owner/supervisor (เช็คผ่าน API getOwnerDashboard ถ้า ok=true)
+- [ ] ปุ่มเจ้าของโผล่เฉพาะ owner/supervisor (เช็คผ่าน API getOwnerDashboard ถ้า ok=true)
 
 ### TASK-24: liff/inbound.html
 - [ ] init LIFF (LIFF_ID_INBOUND) + getProfile
@@ -267,7 +276,7 @@
 - [ ] simple — ไม่มี VDO ไม่มี double-blind
 - [ ] submit → action='submitCancel'
 
-### TASK-30: liff/admin.html (owner LIFF)
+### TASK-30: liff/owner.html (owner LIFF)
 - [ ] init + เรียก getOwnerDashboard
 - [ ] ถ้า return error='not_owner' → แสดง "คุณไม่มีสิทธิ์เข้าถึง"
 - [ ] section 1: ยอดสต๊อก 5 SKU
@@ -297,7 +306,7 @@
 
 ### TASK-33: ปรับ LIFF Endpoint URL
 - [ ] LINE Developers → Channel → LIFF → แต่ละ app → แก้ Endpoint URL = GitHub Pages URL จริง
-- [ ] อย่าลืม admin.html ด้วย
+- [ ] อย่าลืม owner.html ด้วย
 
 ### TASK-34: Rich menu
 - [ ] รัน `scripts/setup_rich_menu.py` — แก้ LIFF_IDs ก่อนรัน

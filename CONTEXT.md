@@ -34,7 +34,7 @@
 | **double-blind** | — | 2 คนกรอกแยกคนละครั้ง โดยไม่เห็นเลขของกัน |
 | **คนนับ 1 / คนนับ 2** | submitter1 / submitter2 | พนักงาน 2 คนกรอกฟอร์มเดียวกัน |
 | **หัวหน้าคลัง** | supervisor / manager | ตัดสินกรณี double-blind นับไม่ตรง |
-| **เจ้าของ** | owner / admin | approve คืน/ยกเลิก, ปรับยอด, รับสรุปรายสัปดาห์ |
+| **เจ้าของ** | owner | approve คืน/ยกเลิก, ปรับยอด, รับสรุปรายสัปดาห์ |
 | **พนักงานคลัง** | staff / worker | กรอกฟอร์มทั่วไป |
 | **ปุ่มยกเลิก** | undo / soft cancel | ยกเลิก submission ที่เพิ่งกรอก ภายใน 5 นาที |
 
@@ -48,7 +48,7 @@
 |---|---|---|---|---|
 | **พนักงานคลัง** | 2 | inbound / outbound / count / adjust / return / cancel | กรอกฟอร์มทุกอย่าง, ยกเลิก submission ของตัวเอง 5 นาที | approve, ปรับยอด, ดู dashboard |
 | **หัวหน้าคลัง** | 1 | ทุกอย่างของ staff + รับ LINE alert | + ตัดสิน double-blind นับไม่ตรง | approve คืน/ยกเลิก |
-| **เจ้าของ** | 2 | ทุก LIFF + admin.html | + approve คืน/ยกเลิก, ปรับยอดหลัง count, update claim stage, รับรายงาน | — |
+| **เจ้าของ** | 2 | ทุก LIFF + owner.html | + approve คืน/ยกเลิก, ปรับยอดหลัง count, update claim stage, รับรายงาน | — |
 
 **กฎเข้าระบบ:**
 - ทุกคนระบุตัวตนด้วย LINE User ID (จาก LIFF) — ไม่มี password
