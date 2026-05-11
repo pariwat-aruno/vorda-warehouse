@@ -156,14 +156,15 @@
 - **owner-initiated `handleAdjustStock`** → จะทำใน TASK-14
 
 ### TASK-12: Count.gs::handleSubmitCount
-- [ ] **ต่างจาก Movement:** ไม่ apply Stock อัตโนมัติ
-- [ ] รอบ 1: snapshot `system_qty = Stock.qty_on_hand` ตอนนี้ → insert row
-- [ ] รอบ 2: match → final_qty = submitter1_qty (ถ้าตรง)
-  - variance = final_qty - system_qty
-  - ถ้า variance === 0 → status='no_action' + push LINE manager
-  - ถ้า variance ≠ 0 → status='awaiting_owner' + pushToAllManagers พร้อมปุ่มไป owner LIFF
-- [ ] กรณีไม่ตรง → pending_supervisor (เหมือน movement)
-- **Acceptance:** owner ได้ alert เฉพาะ variance ≠ 0
+- [x] **ต่างจาก Movement:** ไม่ apply Stock อัตโนมัติ
+- [x] รอบ 1: snapshot `system_qty = Stock.qty_on_hand` ตอนนี้ → insert row
+- [x] รอบ 2: match → final_qty = submitter1_qty (ถ้าตรง) → variance = final_qty - system_qty
+  - variance === 0 → status='no_action' + push manager info
+  - variance ≠ 0 → status='awaiting_owner' + push owner ให้กดปรับยอด
+- [x] กรณีไม่ตรง → pending_supervisor + push supervisors
+- [x] qty นับเทียบยอมรับ 0 ได้ (นับแล้วของหมด)
+- [x] payload key: `pairingCountId` (แทน pairingMovementId)
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-13: Count.gs::handleSupervisorTiebreaker
 - [ ] เช็ค `isSupervisor(lineUserId)` ก่อน
