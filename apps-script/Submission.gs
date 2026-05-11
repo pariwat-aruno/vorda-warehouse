@@ -252,6 +252,42 @@ function readStockQty_(productId) {
   return 0;
 }
 
+/**
+ * normalize items[] input — รับทั้ง items: [{ product_id, qty }] หรือ single productId+qty (backward compat)
+ *
+ * return: { ok, items: [{ product_id, product_name, qty }], totalQty, error?, message? }
+ */
+function normalizeItems_(payload) {
+  let raw = [];
+  if (Array.isArray(payload.items) && payload.items.length > 0) {
+    raw = payload.items;
+  } else if (payload.productId && payload.qty) {
+    raw = [{ product_id: payload.productId, qty: payload.qty, product_name: payload.productName }];
+  }
+  if (raw.length === 0) {
+    return { ok: false, error: 'no_items', message: 'ต้องมีสินค้าอย่างน้อย 1 รายการ' };
+  }
+  const out = [];
+  let totalQty = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const pid = String(raw[i].product_id || '').trim();
+    const qtyVal = Number(raw[i].qty);
+    if (!pid) return { ok: false, error: 'item_invalid', message: 'item ' + (i + 1) + ': product_id ว่าง' };
+    if (!isFinite(qtyVal) || qtyVal <= 0 || qtyVal !== Math.floor(qtyVal)) {
+      return { ok: false, error: 'item_invalid', message: 'item ' + (i + 1) + ': qty ต้องเป็นจำนวนเต็มบวก' };
+    }
+    let pName = String(raw[i].product_name || '').trim();
+    if (!pName) pName = lookupProductName_(pid) || '';
+    if (!pName) {
+      // ไม่ใช่ของเราก็ได้ — keep raw text จาก client (ถ้าไม่มีก็ใช้ pid)
+      pName = pid;
+    }
+    out.push({ product_id: pid, product_name: pName, qty: qtyVal });
+    totalQty += qtyVal;
+  }
+  return { ok: true, items: out, totalQty: totalQty };
+}
+
 /** ดึง product_name จาก Products sheet (active only) — return null ถ้าไม่เจอหรือ inactive */
 function lookupProductName_(productId) {
   const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');

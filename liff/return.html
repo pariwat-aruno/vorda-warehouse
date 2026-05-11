@@ -35,7 +35,10 @@
 
       <div class="field">
         <div class="label">เลข tracking</div>
-        <input id="tracking-input" type="text" placeholder="เช่น TH123456789" />
+        <div class="row">
+          <input id="tracking-input" type="text" placeholder="เช่น TH123456789" style="margin-bottom:0" />
+          <button id="scan-btn" class="btn-secondary" type="button" style="flex:0 0 auto; width:auto; padding:12px 14px;">📷 สแกน</button>
+        </div>
       </div>
 
       <div class="checkbox-row">
@@ -43,34 +46,23 @@
         <label for="is-our-product">เป็นสินค้าของเรา</label>
       </div>
 
-      <div id="product-section">
-        <div class="field">
-          <div class="label">สินค้า</div>
-          <select id="product-select"><option>กำลังโหลด...</option></select>
-        </div>
-        <div class="field">
-          <div class="label">จำนวน (ชิ้น)</div>
-          <input id="qty-input" type="number" inputmode="numeric" min="1" placeholder="0" />
-        </div>
-        <div class="field">
-          <div class="label">สภาพ</div>
-          <div class="row">
-            <label><input type="radio" name="condition" value="good" checked /> ดี (เข้า Stock ได้)</label>
-            <label><input type="radio" name="condition" value="bad" /> ไม่ดี (reject)</label>
-          </div>
+      <div class="label">สินค้า (เพิ่มได้หลายรายการ)</div>
+      <div id="items-container"></div>
+      <button id="add-item-btn" class="btn-secondary" type="button" style="margin-bottom:14px">+ เพิ่มสินค้า</button>
+
+      <div class="field">
+        <div class="label">สภาพ (ใช้กับทุกชิ้นในใบนี้)</div>
+        <div class="row">
+          <label><input type="radio" name="condition" value="good" checked /> ดี (เข้า Stock ได้)</label>
+          <label><input type="radio" name="condition" value="bad" /> ไม่ดี (reject)</label>
         </div>
       </div>
 
-      <div id="not-our-product-section" style="display:none">
-        <div class="field">
-          <div class="label">ชื่อสินค้า (ที่ลูกค้าส่งมา — ไม่ใช่ของเรา)</div>
-          <input id="product-name-input" type="text" placeholder="ชื่อสินค้าที่เห็นในใบ/บนกล่อง" />
-        </div>
-        <div class="field">
-          <div class="label">จำนวน</div>
-          <input id="qty-input-alt" type="number" inputmode="numeric" min="1" placeholder="0" />
-        </div>
-      </div>
+      <!-- legacy hidden — DOM compat -->
+      <select id="product-select" style="display:none"></select>
+      <input id="qty-input" type="number" style="display:none" />
+      <input id="product-name-input" type="text" style="display:none" />
+      <input id="qty-input-alt" type="number" style="display:none" />
 
       <div class="label">VDO ตอนแกะ (≤ 30 วินาที)</div>
       <div class="vdo-wrap">
@@ -169,24 +161,91 @@
       if (subtitle) subtitle.style.display = 'none';
     }
 
+    let productOptions = [];
+    let itemRows = [];
+
     try {
       const res = await api.post('getProducts', { lineUserId: state.lineUserId });
-      ui.productSel.innerHTML = '<option value="">— เลือกสินค้า —</option>';
-      (res.products || []).forEach(function (p) {
-        const opt = document.createElement('option');
-        opt.value = p.product_id;
-        opt.textContent = p.product_name + ' (คงเหลือ ' + p.qty_on_hand + ' ' + (p.unit || 'ชิ้น') + ')';
-        ui.productSel.appendChild(opt);
-      });
+      productOptions = res.products || [];
+      itemRows.push({ product_id: '', product_name: '', qty: 0 });
+      renderItems();
     } catch (err) {
       showError(ui.err, 'โหลดสินค้าไม่ได้: ' + (err.code || err.message));
     }
 
-    // toggle our-product
-    ui.isOur.addEventListener('change', function () {
+    function renderItems() {
+      const container = document.getElementById('items-container');
+      container.innerHTML = '';
       const isOur = ui.isOur.checked;
-      ui.productSec.style.display = isOur ? 'block' : 'none';
-      ui.notOurSec.style.display = isOur ? 'none' : 'block';
+      itemRows.forEach((it, idx) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'row';
+        wrap.style.cssText = 'gap:6px; margin-bottom:8px;';
+        // ของเรา → dropdown; ไม่ใช่ของเรา → text input ชื่อสินค้า
+        let prodEl;
+        if (isOur) {
+          prodEl = document.createElement('select');
+          prodEl.innerHTML = '<option value="">— เลือกสินค้า —</option>' +
+            productOptions.map(p =>
+              '<option value="' + p.product_id + '"' + (p.product_id === it.product_id ? ' selected' : '') + '>' +
+              p.product_name + '</option>'
+            ).join('');
+          prodEl.onchange = () => {
+            it.product_id = prodEl.value;
+            it.product_name = (productOptions.find(p => p.product_id === prodEl.value) || {}).product_name || '';
+          };
+        } else {
+          prodEl = document.createElement('input');
+          prodEl.type = 'text'; prodEl.placeholder = 'ชื่อสินค้า (ที่ลูกค้าส่งมา)';
+          prodEl.value = it.product_name || '';
+          prodEl.oninput = () => {
+            it.product_name = prodEl.value;
+            it.product_id = '(foreign-' + idx + ')';  // backend จะใช้ product_name แทน
+          };
+        }
+        prodEl.style.flex = '3';
+        const qInput = document.createElement('input');
+        qInput.type = 'number'; qInput.inputMode = 'numeric'; qInput.min = '1';
+        qInput.style.flex = '1'; qInput.placeholder = '0';
+        qInput.value = it.qty || '';
+        qInput.oninput = () => { it.qty = Number(qInput.value); };
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'btn-neutral';
+        rm.style.cssText = 'flex:0 0 auto; width:auto; padding:8px 12px;';
+        rm.textContent = '×';
+        rm.onclick = () => { itemRows.splice(idx, 1); renderItems(); };
+        wrap.appendChild(prodEl); wrap.appendChild(qInput); wrap.appendChild(rm);
+        container.appendChild(wrap);
+      });
+    }
+
+    document.getElementById('add-item-btn').addEventListener('click', () => {
+      itemRows.push({ product_id: '', product_name: '', qty: 0 });
+      renderItems();
+    });
+
+    // Barcode scan
+    document.getElementById('scan-btn').addEventListener('click', async () => {
+      if (typeof liff === 'undefined' || !liff.scanCodeV2) {
+        showError(ui.err, 'อุปกรณ์นี้ไม่รองรับการสแกน — พิมพ์เลขเอง');
+        return;
+      }
+      try {
+        const result = await liff.scanCodeV2();
+        if (result && result.value) {
+          ui.tracking.value = result.value;
+          clearError(ui.err);
+        }
+      } catch (e) {
+        showError(ui.err, 'สแกนไม่สำเร็จ: ' + (e.message || e));
+      }
+    });
+
+    // toggle our-product → re-render items
+    ui.isOur.addEventListener('change', function () {
+      // clear items (เพราะ shape ต่างกัน)
+      itemRows = [{ product_id: '', product_name: '', qty: 0 }];
+      renderItems();
     });
 
     // start preview camera
@@ -306,21 +365,15 @@
       clearError(ui.err);
       const trackingNumber = ui.tracking.value.trim();
       const isOurProduct = ui.isOur.checked;
-      let productId = '', productName = '', qty = 0;
-      if (isOurProduct) {
-        productId = ui.productSel.value;
-        qty = Number(ui.qty.value);
-      } else {
-        productName = ui.productNameAlt.value.trim();
-        qty = Number(ui.qtyAlt.value);
-      }
       let condition = 'good';
       ui.condRadios.forEach(function (r) { if (r.checked) condition = r.value; });
 
+      // validate items
+      const validItems = itemRows.filter(it =>
+        (isOurProduct ? !!it.product_id : !!it.product_name) && it.qty > 0 && it.qty === Math.floor(it.qty)
+      );
       if (!trackingNumber) return showError(ui.err, 'ใส่เลข tracking ก่อน');
-      if (isOurProduct && !productId) return showError(ui.err, 'เลือกสินค้าก่อน');
-      if (!isOurProduct && !productName) return showError(ui.err, 'ใส่ชื่อสินค้าที่ลูกค้าส่งมา');
-      if (!qty || qty <= 0 || qty !== Math.floor(qty)) return showError(ui.err, 'จำนวนต้องเป็นจำนวนเต็มบวก');
+      if (validItems.length === 0) return showError(ui.err, 'เพิ่มสินค้าอย่างน้อย 1 รายการ + กรอกครบ');
       if (!videoBase64) return showError(ui.err, 'ต้องอัด VDO ก่อน');
 
       ui.submitBtn.disabled = true;
@@ -330,9 +383,7 @@
           lineUserId: state.lineUserId,
           name: state.profile && state.profile.displayName || '',
           trackingNumber: trackingNumber,
-          productId: productId,
-          productName: productName,
-          qty: qty,
+          items: validItems,
           isOurProduct: isOurProduct,
           condition: condition,
           videoBase64: videoBase64,

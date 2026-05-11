@@ -39,40 +39,37 @@ function handleSubmitReturn(payload) {
   const lineUserId = payload.lineUserId;
   const name = payload.name || '';
   const trackingNumber = String(payload.trackingNumber || '').trim();
-  const productId = String(payload.productId || '').trim();
-  const productName = String(payload.productName || '').trim();
-  const qty = Number(payload.qty);
   const isOurProduct = !!payload.isOurProduct;
   const condition = String(payload.condition || '').toLowerCase();
   const videoBase64 = payload.videoBase64;
   const photos = payload.photos || [];
 
-  if (!lineUserId || !trackingNumber || !qty || !condition || !videoBase64) {
-    return { ok: false, error: 'missing_params', need: ['lineUserId', 'trackingNumber', 'qty', 'condition', 'videoBase64'] };
-  }
-  if (!isFinite(qty) || qty <= 0 || qty !== Math.floor(qty)) {
-    return { ok: false, error: 'qty_invalid', message: 'qty ต้องเป็นจำนวนเต็มบวก' };
+  if (!lineUserId || !trackingNumber || !condition || !videoBase64) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'trackingNumber', 'condition', 'videoBase64', 'items'] };
   }
   if (condition !== 'good' && condition !== 'bad') {
     return { ok: false, error: 'condition_invalid', message: "condition ต้องเป็น 'good' หรือ 'bad'" };
   }
-  if (isOurProduct && !productId) {
-    return { ok: false, error: 'product_required', message: 'ของเราต้องระบุ productId' };
+
+  // รับ items[] หรือ legacy single productId/qty/productName
+  const norm = normalizeItems_(payload);
+  if (!norm.ok) return norm;
+  if (isOurProduct) {
+    // เช็คทุก item ว่า lookup เจอใน Products (ของเรา)
+    for (let i = 0; i < norm.items.length; i++) {
+      if (!lookupProductName_(norm.items[i].product_id)) {
+        return { ok: false, error: 'product_not_found', productId: norm.items[i].product_id };
+      }
+    }
   }
 
-  const dedupKey = 'return:' + lineUserId + ':' + trackingNumber + ':' + qty;
+  const dedupKey = 'return:' + lineUserId + ':' + trackingNumber + ':' + norm.totalQty + ':' + norm.items.length;
   if (!dedupRecentSubmission_(dedupKey, 5)) {
     return { ok: false, error: 'duplicate_request' };
   }
 
   try {
     autoRegisterStaff_(lineUserId, name);
-
-    // resolve product_name
-    let finalProductName = productName;
-    if (isOurProduct && !finalProductName) {
-      finalProductName = lookupProductName_(productId) || '';
-    }
 
     const returnId = nextReturnId();
 
@@ -84,15 +81,27 @@ function handleSubmitReturn(payload) {
 
     const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
     const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Returns');
-    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    let headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+
+    // เพิ่ม items_json column ถ้ายังไม่มี
+    if (headers.indexOf('items_json') < 0) {
+      sh.getRange(1, headers.length + 1).setValue('items_json').setFontWeight('bold');
+      headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    }
+
     const row = new Array(headers.length).fill('');
     const now = nowBangkok();
+    const first = norm.items[0];
+    const itemsLabel = norm.items.length > 1
+      ? first.product_name + ' +' + (norm.items.length - 1) + ' รายการ'
+      : first.product_name;
 
     setCol_(row, headers, 'return_id', returnId);
     setCol_(row, headers, 'tracking_number', trackingNumber);
-    setCol_(row, headers, 'product_id', productId);
-    setCol_(row, headers, 'product_name', finalProductName);
-    setCol_(row, headers, 'qty', qty);
+    setCol_(row, headers, 'product_id', first.product_id);
+    setCol_(row, headers, 'product_name', itemsLabel);
+    setCol_(row, headers, 'qty', norm.totalQty);
+    setCol_(row, headers, 'items_json', JSON.stringify(norm.items));
     setCol_(row, headers, 'is_our_product', isOurProduct);
     setCol_(row, headers, 'condition', condition);
     setCol_(row, headers, 'video_url', videoUrl);
@@ -106,15 +115,15 @@ function handleSubmitReturn(payload) {
     sh.appendRow(row);
 
     logInfo('handleSubmitReturn', 'submitted', {
-      returnId: returnId, trackingNumber: trackingNumber, qty: qty,
-      isOurProduct: isOurProduct, condition: condition,
+      returnId: returnId, trackingNumber: trackingNumber, totalQty: norm.totalQty,
+      items: norm.items.length, isOurProduct: isOurProduct, condition: condition,
     });
 
     safePushToAllOwners_([buildPendingReturnCard({
       return_id: returnId,
       tracking_number: trackingNumber,
-      product_name: finalProductName,
-      qty: qty,
+      product_name: itemsLabel,
+      qty: norm.totalQty,
       is_our_product: isOurProduct,
       condition: condition,
       video_url: videoUrl,
@@ -126,12 +135,14 @@ function handleSubmitReturn(payload) {
       ok: true,
       returnId: returnId,
       status: 'pending_owner',
+      items: norm.items,
+      totalQty: norm.totalQty,
       video_url: videoUrl,
       photo_urls: photoUrls,
     };
   } catch (err) {
     logError('handleSubmitReturn', err.message, {
-      lineUserId: lineUserId, trackingNumber: trackingNumber, qty: qty,
+      lineUserId: lineUserId, trackingNumber: trackingNumber,
     });
     return { ok: false, error: 'server_error', message: err.message };
   }
@@ -186,12 +197,21 @@ function handleApproveReturn(payload) {
       return { ok: false, error: 'not_pending_owner', currentStatus: status };
     }
 
-    const productId = String(row[headers.indexOf('product_id')] || '');
-    const productName = String(row[headers.indexOf('product_name')] || productId);
-    const qty = Number(row[headers.indexOf('qty')] || 0);
     const isOurProduct = !!row[headers.indexOf('is_our_product')];
     const condition = String(row[headers.indexOf('condition')] || '');
     const trackingNumber = String(row[headers.indexOf('tracking_number')] || '');
+    const itemsJsonRaw = String(row[headers.indexOf('items_json')] || '');
+    let items;
+    if (itemsJsonRaw) {
+      try { items = JSON.parse(itemsJsonRaw); } catch (e) { items = null; }
+    }
+    if (!items || !items.length) {
+      // legacy row → ใช้ product_id/qty เป็น 1 item
+      const pid = String(row[headers.indexOf('product_id')] || '');
+      const pName = String(row[headers.indexOf('product_name')] || pid);
+      const qtyVal = Number(row[headers.indexOf('qty')] || 0);
+      items = [{ product_id: pid, product_name: pName, qty: qtyVal }];
+    }
     const ownerName = (function () {
       const s = findStaffByLineUserId(lineUserId);
       return (s && s.name) || 'owner';
@@ -201,7 +221,6 @@ function handleApproveReturn(payload) {
     if (decision === 'accept_to_stock') {
       if (!isOurProduct) return { ok: false, error: 'cannot_accept_foreign', message: 'ไม่ใช่ของเรา — ใช้ forward_to_claim' };
       if (condition !== 'good') return { ok: false, error: 'cannot_accept_bad', message: 'สภาพไม่ดี — ใช้ reject_bad' };
-      if (!productId) return { ok: false, error: 'product_missing', message: 'ไม่มี productId — แก้ Sheet Returns ก่อน' };
     }
 
     const now = nowBangkok();
@@ -210,51 +229,57 @@ function handleApproveReturn(payload) {
     sh.getRange(rowIdx, headers.indexOf('owner_decision') + 1).setValue(decision);
 
     if (decision === 'accept_to_stock') {
-      // insert Movement (return_in, +qty) + apply Stock
-      const movementId = nextMovementId();
       const movSh = ss.getSheetByName('Movements');
       const movHeaders = movSh.getRange(1, 1, 1, movSh.getLastColumn()).getValues()[0];
-      const mrow = new Array(movHeaders.length).fill('');
-      setCol_(mrow, movHeaders, 'movement_id', movementId);
-      setCol_(mrow, movHeaders, 'movement_type', 'return_in');
-      setCol_(mrow, movHeaders, 'product_id', productId);
-      setCol_(mrow, movHeaders, 'product_name', productName);
-      setCol_(mrow, movHeaders, 'qty', qty);
-      setCol_(mrow, movHeaders, 'related_doc_id', returnId);
-      setCol_(mrow, movHeaders, 'submitter1_user_id', lineUserId);
-      setCol_(mrow, movHeaders, 'submitter1_name', ownerName);
-      setCol_(mrow, movHeaders, 'submitter1_qty', qty);
-      setCol_(mrow, movHeaders, 'submitter1_at', now);
-      setCol_(mrow, movHeaders, 'status', 'confirmed');
-      setCol_(mrow, movHeaders, 'created_at', now);
-      setCol_(mrow, movHeaders, 'confirmed_at', now);
-      movSh.appendRow(mrow);
+      const movementIds = [];
+      const appliedItems = [];
 
-      const stock = applyStockDelta_(productId, +qty, movementId);
+      // insert 1 Movement row per item + apply Stock
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const movementId = nextMovementId();
+        const mrow = new Array(movHeaders.length).fill('');
+        setCol_(mrow, movHeaders, 'movement_id', movementId);
+        setCol_(mrow, movHeaders, 'movement_type', 'return_in');
+        setCol_(mrow, movHeaders, 'product_id', it.product_id);
+        setCol_(mrow, movHeaders, 'product_name', it.product_name);
+        setCol_(mrow, movHeaders, 'qty', it.qty);
+        setCol_(mrow, movHeaders, 'related_doc_id', returnId);
+        setCol_(mrow, movHeaders, 'submitter1_user_id', lineUserId);
+        setCol_(mrow, movHeaders, 'submitter1_name', ownerName);
+        setCol_(mrow, movHeaders, 'submitter1_qty', it.qty);
+        setCol_(mrow, movHeaders, 'submitter1_at', now);
+        setCol_(mrow, movHeaders, 'status', 'confirmed');
+        setCol_(mrow, movHeaders, 'created_at', now);
+        setCol_(mrow, movHeaders, 'confirmed_at', now);
+        movSh.appendRow(mrow);
+
+        const stock = applyStockDelta_(it.product_id, +it.qty, movementId);
+        movementIds.push(movementId);
+        appliedItems.push(Object.assign({}, it, { movement_id: movementId, stock_after: stock.qty_after }));
+      }
 
       sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('accepted');
 
       logInfo('handleApproveReturn', 'accepted', {
-        returnId: returnId, movementId: movementId, qty: qty,
-        stock_before: stock.qty_before, stock_after: stock.qty_after,
+        returnId: returnId, movementIds: movementIds, items: items.length,
       });
 
+      const itemsText = appliedItems.map(it =>
+        '  • ' + it.product_name + ' +' + it.qty + ' (คงเหลือ ' + it.stock_after + ')'
+      ).join('\n');
       safePushToAllOwners_([{
         type: 'text',
         text:
           'ตีคืน accepted (เข้า Stock)\n' +
           'รหัส: ' + returnId + '\n' +
           'tracking: ' + trackingNumber + '\n' +
-          'สินค้า: ' + productName + '\n' +
-          'จำนวน: +' + qty + ' ชิ้น\n' +
-          'ยอดคงเหลือ: ' + stock.qty_after + '\n' +
-          'movement: ' + movementId,
+          itemsText,
       }], 'handleApproveReturn');
 
       return {
         ok: true, returnId: returnId, decision: decision,
-        status: 'accepted', movementId: movementId,
-        qty_before: stock.qty_before, qty_after: stock.qty_after,
+        status: 'accepted', movementIds: movementIds, items: appliedItems,
       };
     }
 
@@ -262,13 +287,14 @@ function handleApproveReturn(payload) {
       sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('rejected');
       logInfo('handleApproveReturn', 'rejected', { returnId: returnId });
 
+      const itemsText = items.map(it => it.product_name + ' ×' + it.qty).join(', ');
       safePushToAllOwners_([{
         type: 'text',
         text:
           'ตีคืน rejected (ไม่กระทบ Stock)\n' +
           'รหัส: ' + returnId + '\n' +
           'tracking: ' + trackingNumber + '\n' +
-          'สินค้า: ' + (productName || '(ไม่ใช่ของเรา)') + '\n' +
+          'รวม: ' + (itemsText || '(ไม่ใช่ของเรา)') + '\n' +
           'สภาพ: ' + (condition === 'good' ? 'ดี' : 'ไม่ดี'),
       }], 'handleApproveReturn');
 

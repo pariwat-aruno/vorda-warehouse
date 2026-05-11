@@ -26,18 +26,16 @@ function handleSubmitCancel(payload) {
   const lineUserId = payload.lineUserId;
   const name = payload.name || '';
   const trackingNumber = String(payload.trackingNumber || '').trim();
-  const productId = String(payload.productId || '').trim();
-  const qty = Number(payload.qty);
   const photos = payload.photos || [];
 
-  if (!lineUserId || !trackingNumber || !productId || !qty || !Array.isArray(photos) || photos.length < 1) {
-    return { ok: false, error: 'missing_params', need: ['lineUserId', 'trackingNumber', 'productId', 'qty', 'photos[≥1]'] };
-  }
-  if (!isFinite(qty) || qty <= 0 || qty !== Math.floor(qty)) {
-    return { ok: false, error: 'qty_invalid', message: 'qty ต้องเป็นจำนวนเต็มบวก' };
+  if (!lineUserId || !trackingNumber || !Array.isArray(photos) || photos.length < 1) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'trackingNumber', 'items', 'photos[≥1]'] };
   }
 
-  const dedupKey = 'cancel:' + lineUserId + ':' + trackingNumber + ':' + productId + ':' + qty;
+  const norm = normalizeItems_(payload);
+  if (!norm.ok) return norm;
+
+  const dedupKey = 'cancel:' + lineUserId + ':' + trackingNumber + ':' + norm.totalQty + ':' + norm.items.length;
   if (!dedupRecentSubmission_(dedupKey, 5)) {
     return { ok: false, error: 'duplicate_request' };
   }
@@ -45,23 +43,32 @@ function handleSubmitCancel(payload) {
   try {
     autoRegisterStaff_(lineUserId, name);
 
-    const productName = lookupProductName_(productId);
-    if (!productName) return { ok: false, error: 'product_not_found', productId: productId };
-
     const cancelId = nextCancelId();
     const photoUrls = uploadImages(photos, cancelId, 'cancel');
 
     const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
     const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Cancellations');
-    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    let headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+
+    // เพิ่ม items_json column ถ้ายังไม่มี
+    if (headers.indexOf('items_json') < 0) {
+      sh.getRange(1, headers.length + 1).setValue('items_json').setFontWeight('bold');
+      headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    }
+
     const row = new Array(headers.length).fill('');
     const now = nowBangkok();
+    const first = norm.items[0];
+    const itemsLabel = norm.items.length > 1
+      ? first.product_name + ' +' + (norm.items.length - 1) + ' รายการ'
+      : first.product_name;
 
     setCol_(row, headers, 'cancel_id', cancelId);
     setCol_(row, headers, 'tracking_number', trackingNumber);
-    setCol_(row, headers, 'product_id', productId);
-    setCol_(row, headers, 'product_name', productName);
-    setCol_(row, headers, 'qty', qty);
+    setCol_(row, headers, 'product_id', first.product_id);  // legacy: ใช้ตัวแรกเป็นตัวแทน
+    setCol_(row, headers, 'product_name', itemsLabel);
+    setCol_(row, headers, 'qty', norm.totalQty);            // legacy: ยอดรวม
+    setCol_(row, headers, 'items_json', JSON.stringify(norm.items));
     setCol_(row, headers, 'photo_urls', photoUrls.join(','));
     setCol_(row, headers, 'staff_user_id', lineUserId);
     setCol_(row, headers, 'staff_name', name);
@@ -72,14 +79,14 @@ function handleSubmitCancel(payload) {
     sh.appendRow(row);
 
     logInfo('handleSubmitCancel', 'submitted', {
-      cancelId: cancelId, trackingNumber: trackingNumber, productId: productId, qty: qty,
+      cancelId: cancelId, trackingNumber: trackingNumber, items: norm.items.length, totalQty: norm.totalQty,
     });
 
     safePushToAllOwners_([buildPendingCancelCard({
       cancel_id: cancelId,
       tracking_number: trackingNumber,
-      product_name: productName,
-      qty: qty,
+      product_name: itemsLabel,
+      qty: norm.totalQty,
       photo_urls: photoUrls.join(','),
       staff_name: name,
     })], 'handleSubmitCancel');
@@ -88,10 +95,12 @@ function handleSubmitCancel(payload) {
       ok: true,
       cancelId: cancelId,
       status: 'pending_owner',
+      items: norm.items,
+      totalQty: norm.totalQty,
       photo_urls: photoUrls,
     };
   } catch (err) {
-    logError('handleSubmitCancel', err.message, { trackingNumber: trackingNumber, productId: productId });
+    logError('handleSubmitCancel', err.message, { trackingNumber: trackingNumber });
     return { ok: false, error: 'server_error', message: err.message };
   }
 }
@@ -140,10 +149,19 @@ function handleApproveCancel(payload) {
       return { ok: false, error: 'not_pending_owner', currentStatus: status };
     }
 
-    const productId = String(row[headers.indexOf('product_id')] || '');
-    const productName = String(row[headers.indexOf('product_name')] || productId);
-    const qty = Number(row[headers.indexOf('qty')] || 0);
     const trackingNumber = String(row[headers.indexOf('tracking_number')] || '');
+    const itemsJsonRaw = String(row[headers.indexOf('items_json')] || '');
+    let items;
+    if (itemsJsonRaw) {
+      try { items = JSON.parse(itemsJsonRaw); } catch (e) { items = null; }
+    }
+    if (!items || !items.length) {
+      // legacy row → ใช้ product_id/qty เป็น 1 item
+      const pid = String(row[headers.indexOf('product_id')] || '');
+      const pName = String(row[headers.indexOf('product_name')] || pid);
+      const qtyVal = Number(row[headers.indexOf('qty')] || 0);
+      items = [{ product_id: pid, product_name: pName, qty: qtyVal }];
+    }
     const ownerName = (function () {
       const s = findStaffByLineUserId(lineUserId);
       return (s && s.name) || 'owner';
@@ -154,51 +172,57 @@ function handleApproveCancel(payload) {
     sh.getRange(rowIdx, headers.indexOf('owner_at') + 1).setValue(now);
 
     if (decision === 'accept') {
-      // insert Movement (cancel_in, +qty) + apply Stock
-      const movementId = nextMovementId();
       const movSh = ss.getSheetByName('Movements');
       const movHeaders = movSh.getRange(1, 1, 1, movSh.getLastColumn()).getValues()[0];
-      const mrow = new Array(movHeaders.length).fill('');
-      setCol_(mrow, movHeaders, 'movement_id', movementId);
-      setCol_(mrow, movHeaders, 'movement_type', 'cancel_in');
-      setCol_(mrow, movHeaders, 'product_id', productId);
-      setCol_(mrow, movHeaders, 'product_name', productName);
-      setCol_(mrow, movHeaders, 'qty', qty);
-      setCol_(mrow, movHeaders, 'related_doc_id', cancelId);
-      setCol_(mrow, movHeaders, 'submitter1_user_id', lineUserId);
-      setCol_(mrow, movHeaders, 'submitter1_name', ownerName);
-      setCol_(mrow, movHeaders, 'submitter1_qty', qty);
-      setCol_(mrow, movHeaders, 'submitter1_at', now);
-      setCol_(mrow, movHeaders, 'status', 'confirmed');
-      setCol_(mrow, movHeaders, 'created_at', now);
-      setCol_(mrow, movHeaders, 'confirmed_at', now);
-      movSh.appendRow(mrow);
+      const movementIds = [];
+      const appliedItems = [];
 
-      const stock = applyStockDelta_(productId, +qty, movementId);
+      // insert 1 Movement row per item + apply Stock
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const movementId = nextMovementId();
+        const mrow = new Array(movHeaders.length).fill('');
+        setCol_(mrow, movHeaders, 'movement_id', movementId);
+        setCol_(mrow, movHeaders, 'movement_type', 'cancel_in');
+        setCol_(mrow, movHeaders, 'product_id', it.product_id);
+        setCol_(mrow, movHeaders, 'product_name', it.product_name);
+        setCol_(mrow, movHeaders, 'qty', it.qty);
+        setCol_(mrow, movHeaders, 'related_doc_id', cancelId);
+        setCol_(mrow, movHeaders, 'submitter1_user_id', lineUserId);
+        setCol_(mrow, movHeaders, 'submitter1_name', ownerName);
+        setCol_(mrow, movHeaders, 'submitter1_qty', it.qty);
+        setCol_(mrow, movHeaders, 'submitter1_at', now);
+        setCol_(mrow, movHeaders, 'status', 'confirmed');
+        setCol_(mrow, movHeaders, 'created_at', now);
+        setCol_(mrow, movHeaders, 'confirmed_at', now);
+        movSh.appendRow(mrow);
+
+        const stock = applyStockDelta_(it.product_id, +it.qty, movementId);
+        movementIds.push(movementId);
+        appliedItems.push(Object.assign({}, it, { movement_id: movementId, stock_after: stock.qty_after }));
+      }
 
       sh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('accepted');
 
       logInfo('handleApproveCancel', 'accepted', {
-        cancelId: cancelId, movementId: movementId, qty: qty,
-        stock_before: stock.qty_before, stock_after: stock.qty_after,
+        cancelId: cancelId, movementIds: movementIds, items: items.length,
       });
 
+      const itemsText = appliedItems.map(it =>
+        '  • ' + it.product_name + ' +' + it.qty + ' (คงเหลือ ' + it.stock_after + ')'
+      ).join('\n');
       safePushToAllOwners_([{
         type: 'text',
         text:
           'ยกเลิก accepted (เข้า Stock)\n' +
           'รหัส: ' + cancelId + '\n' +
           'tracking: ' + trackingNumber + '\n' +
-          'สินค้า: ' + productName + '\n' +
-          'จำนวน: +' + qty + ' ชิ้น\n' +
-          'ยอดคงเหลือ: ' + stock.qty_after + '\n' +
-          'movement: ' + movementId,
+          itemsText,
       }], 'handleApproveCancel');
 
       return {
         ok: true, cancelId: cancelId, decision: decision,
-        status: 'accepted', movementId: movementId,
-        qty_before: stock.qty_before, qty_after: stock.qty_after,
+        status: 'accepted', movementIds: movementIds, items: appliedItems,
       };
     }
 
@@ -211,7 +235,7 @@ function handleApproveCancel(payload) {
         'ยกเลิก rejected (ไม่กระทบ Stock)\n' +
         'รหัส: ' + cancelId + '\n' +
         'tracking: ' + trackingNumber + '\n' +
-        'สินค้า: ' + productName,
+        'รวม: ' + items.map(it => it.product_name + ' ×' + it.qty).join(', '),
     }], 'handleApproveCancel');
 
     return { ok: true, cancelId: cancelId, decision: decision, status: 'rejected' };

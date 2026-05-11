@@ -340,12 +340,31 @@
       return div;
     }
 
+    function parseItems(itemsJson, fallbackName, fallbackQty) {
+      if (itemsJson) {
+        try {
+          const arr = JSON.parse(itemsJson);
+          if (Array.isArray(arr) && arr.length > 0) return arr;
+        } catch (e) {}
+      }
+      return [{ product_name: fallbackName || '-', qty: fallbackQty || 0 }];
+    }
+
+    function itemsToRows(items, label) {
+      return items.map((it, i) => [
+        (label || 'สินค้า') + ' ' + (i + 1),
+        it.product_name + ' × ' + it.qty + ' ชิ้น',
+      ]);
+    }
+
     function openReturnDetail(r, cond, isOur) {
       const condColor = cond === 'ดี' ? '#16a34a' : '#c8102e';
+      const items = parseItems(r.items_json, r.product_name, r.qty);
+      const totalQty = items.reduce((s, it) => s + Number(it.qty || 0), 0);
       const actions = [];
       if (isOur && cond === 'ดี') {
         actions.push({
-          label: 'Accept (เข้า Stock +' + r.qty + ')', className: 'btn-primary',
+          label: 'Accept (เข้า Stock +' + totalQty + ')', className: 'btn-primary',
           onClick: (close) => { close(); approveReturn(r.return_id, 'accept_to_stock'); },
         });
       }
@@ -363,8 +382,8 @@
         rows: [
           ['รหัส', r.return_id],
           ['tracking', r.tracking_number],
-          ['สินค้า', r.product_name || '(ไม่ใช่ของเรา)'],
-          ['จำนวน', r.qty + ' ชิ้น'],
+          ...itemsToRows(items),
+          ['รวม', totalQty + ' ชิ้น (' + items.length + ' รายการ)', '#c8102e'],
           ['สภาพ', cond, condColor],
           ['ของเรา', isOur ? 'ใช่' : 'ไม่ใช่'],
           ['พนักงาน', r.staff_name || '-'],
@@ -392,13 +411,15 @@
     }
 
     function openCancelDetail(c) {
+      const items = parseItems(c.items_json, c.product_name, c.qty);
+      const totalQty = items.reduce((s, it) => s + Number(it.qty || 0), 0);
       showDetailModal({
         title: 'ยกเลิกออเดอร์ รอ approve',
         rows: [
           ['รหัส', c.cancel_id],
           ['tracking', c.tracking_number],
-          ['สินค้า', c.product_name],
-          ['จำนวน', c.qty + ' ชิ้น'],
+          ...itemsToRows(items),
+          ['รวม', totalQty + ' ชิ้น (' + items.length + ' รายการ)', '#c8102e'],
           ['พนักงาน', c.staff_name || '-'],
           ['LINE userId', c.staff_user_id || '-'],
           ['ส่งเมื่อ', fmtDateTime(c.staff_at)],
@@ -406,7 +427,7 @@
         ],
         photoUrls: c.photo_urls,
         actions: [
-          { label: 'Accept (เข้า Stock +' + c.qty + ')', className: 'btn-primary',
+          { label: 'Accept (เข้า Stock +' + totalQty + ')', className: 'btn-primary',
             onClick: (close) => { close(); approveCancel(c.cancel_id, 'accept'); } },
           { label: 'Reject', className: 'btn-neutral',
             onClick: (close) => { close(); approveCancel(c.cancel_id, 'reject'); } },

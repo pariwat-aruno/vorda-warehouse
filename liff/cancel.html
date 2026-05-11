@@ -28,18 +28,19 @@
 
       <div class="field">
         <div class="label">เลข tracking</div>
-        <input id="tracking-input" type="text" placeholder="เช่น TH123456789" />
+        <div class="row">
+          <input id="tracking-input" type="text" placeholder="เช่น TH123456789" style="margin-bottom:0" />
+          <button id="scan-btn" class="btn-secondary" type="button" style="flex:0 0 auto; width:auto; padding:12px 14px;">📷 สแกน</button>
+        </div>
       </div>
 
-      <div class="field">
-        <div class="label">สินค้า</div>
-        <select id="product-select"><option>กำลังโหลด...</option></select>
-      </div>
+      <div class="label">สินค้า (เพิ่มได้หลายรายการ)</div>
+      <div id="items-container"></div>
+      <button id="add-item-btn" class="btn-secondary" type="button" style="margin-bottom:14px">+ เพิ่มสินค้า</button>
 
-      <div class="field">
-        <div class="label">จำนวน (ชิ้น)</div>
-        <input id="qty-input" type="number" inputmode="numeric" min="1" placeholder="0" />
-      </div>
+      <!-- legacy: hide; รักษาไว้เพื่อ DOM compat -->
+      <select id="product-select" style="display:none"></select>
+      <input id="qty-input" type="number" style="display:none" />
 
       <div class="label">ถ่ายรูปประกอบ (อย่างน้อย 1 รูป)</div>
       <div class="camera-wrap">
@@ -91,8 +92,9 @@
     const ui = {
       err: document.getElementById('error'),
       tracking: document.getElementById('tracking-input'),
-      productSel: document.getElementById('product-select'),
-      qty: document.getElementById('qty-input'),
+      scanBtn: document.getElementById('scan-btn'),
+      itemsContainer: document.getElementById('items-container'),
+      addItemBtn: document.getElementById('add-item-btn'),
       camVid: document.getElementById('camera-video'),
       grid: document.querySelector('.photo-grid'),
       counter: document.getElementById('photo-counter'),
@@ -111,6 +113,59 @@
 
     const photos = [];
     let stream = null;
+    let productOptions = []; // [{ product_id, product_name, qty_on_hand, unit }]
+    let itemRows = [];       // array of { product_id, qty }
+
+    // ===== Barcode scan via LIFF =====
+    ui.scanBtn.addEventListener('click', async () => {
+      if (typeof liff === 'undefined' || !liff.scanCodeV2) {
+        showError(ui.err, 'อุปกรณ์นี้ไม่รองรับการสแกน — พิมพ์เลขเอง');
+        return;
+      }
+      try {
+        const result = await liff.scanCodeV2();
+        if (result && result.value) {
+          ui.tracking.value = result.value;
+          clearError(ui.err);
+        }
+      } catch (e) {
+        showError(ui.err, 'สแกนไม่สำเร็จ: ' + (e.message || e));
+      }
+    });
+
+    // ===== Items management =====
+    function renderItems() {
+      ui.itemsContainer.innerHTML = '';
+      itemRows.forEach((it, idx) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'row';
+        wrap.style.cssText = 'gap:6px; margin-bottom:8px;';
+        const sel = document.createElement('select');
+        sel.style.flex = '3';
+        sel.innerHTML = '<option value="">— เลือกสินค้า —</option>' +
+          productOptions.map(p =>
+            '<option value="' + p.product_id + '"' + (p.product_id === it.product_id ? ' selected' : '') + '>' +
+            p.product_name + ' (คงเหลือ ' + p.qty_on_hand + ' ' + (p.unit || 'ชิ้น') + ')</option>'
+          ).join('');
+        sel.onchange = () => { it.product_id = sel.value; };
+        const qInput = document.createElement('input');
+        qInput.type = 'number'; qInput.inputMode = 'numeric'; qInput.min = '1';
+        qInput.style.flex = '1'; qInput.placeholder = '0';
+        qInput.value = it.qty || '';
+        qInput.oninput = () => { it.qty = Number(qInput.value); };
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'btn-neutral';
+        rm.style.cssText = 'flex:0 0 auto; width:auto; padding:8px 12px;';
+        rm.textContent = '×';
+        rm.onclick = () => { itemRows.splice(idx, 1); renderItems(); };
+        wrap.appendChild(sel); wrap.appendChild(qInput); wrap.appendChild(rm);
+        ui.itemsContainer.appendChild(wrap);
+      });
+    }
+    ui.addItemBtn.addEventListener('click', () => {
+      itemRows.push({ product_id: '', qty: 0 });
+      renderItems();
+    });
 
     try {
       await ensureRegistered(CONFIG.LIFF_ID_CANCEL);
@@ -131,13 +186,10 @@
 
     try {
       const res = await api.post('getProducts', { lineUserId: state.lineUserId });
-      ui.productSel.innerHTML = '<option value="">— เลือกสินค้า —</option>';
-      (res.products || []).forEach(function (p) {
-        const opt = document.createElement('option');
-        opt.value = p.product_id;
-        opt.textContent = p.product_name + ' (คงเหลือ ' + p.qty_on_hand + ' ' + (p.unit || 'ชิ้น') + ')';
-        ui.productSel.appendChild(opt);
-      });
+      productOptions = res.products || [];
+      // เริ่มต้นด้วย 1 row ว่าง
+      itemRows.push({ product_id: '', qty: 0 });
+      renderItems();
     } catch (err) {
       showError(ui.err, 'โหลดสินค้าไม่ได้: ' + (err.code || err.message));
     }
@@ -184,11 +236,9 @@
     ui.submitBtn.addEventListener('click', async function () {
       clearError(ui.err);
       const trackingNumber = ui.tracking.value.trim();
-      const productId = ui.productSel.value;
-      const qty = Number(ui.qty.value);
+      const validItems = itemRows.filter(it => it.product_id && it.qty > 0 && it.qty === Math.floor(it.qty));
       if (!trackingNumber) return showError(ui.err, 'ใส่เลข tracking ก่อน');
-      if (!productId) return showError(ui.err, 'เลือกสินค้าก่อน');
-      if (!qty || qty <= 0 || qty !== Math.floor(qty)) return showError(ui.err, 'จำนวนต้องเป็นจำนวนเต็มบวก');
+      if (validItems.length === 0) return showError(ui.err, 'เพิ่มสินค้าอย่างน้อย 1 รายการ + จำนวนถูกต้อง');
       if (photos.length < 1) return showError(ui.err, 'ถ่ายรูปอย่างน้อย 1 รูป');
 
       ui.submitBtn.disabled = true;
@@ -198,8 +248,7 @@
           lineUserId: state.lineUserId,
           name: state.profile && state.profile.displayName || '',
           trackingNumber: trackingNumber,
-          productId: productId,
-          qty: qty,
+          items: validItems,
           photos: photos.slice(),
         });
         stopCamera(stream); stream = null;
