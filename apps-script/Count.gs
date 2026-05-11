@@ -360,7 +360,7 @@ function _tiebreakerMovement_(lineUserId, name, movementId, qty, photos) {
     typeLabel = 'รับเข้า';
   } else if (movementType === 'outbound') {
     delta = -qty;
-    typeLabel = 'หยิบออก';
+    typeLabel = 'เตรียมแพ็ค';
   } else if (movementType === 'adjust') {
     delta = -qty;
     typeLabel = 'เสียหาย';

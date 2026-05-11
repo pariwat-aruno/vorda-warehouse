@@ -269,7 +269,7 @@
       div.className = 'dash-item clickable';
       const type = String(m.movement_type || '');
       const typeLabel = type === 'inbound' ? 'รับเข้า'
-                      : type === 'outbound' ? 'หยิบออก'
+                      : type === 'outbound' ? 'เตรียมแพ็ค'
                       : type === 'adjust' ? 'เสียหาย' : type;
       const photoCount = String(m.photo_urls || '').split(',').filter(u => u.trim()).length;
       div.innerHTML =
@@ -740,7 +740,7 @@
       try {
         const res = await api.post('getDailyReport', { lineUserId: state.lineUserId });
         flash(ui.ok, 'รายวัน ' + res.date + ' — รับเข้า ' + (res.by_type && res.by_type.inbound || 0)
-          + ' / หยิบออก ' + (res.by_type && res.by_type.outbound || 0));
+          + ' / เตรียมแพ็ค ' + (res.by_type && res.by_type.outbound || 0));
       } catch (err) {
         showError(ui.err, 'รายงานล้มเหลว: ' + (err.code || err.message));
       } finally {

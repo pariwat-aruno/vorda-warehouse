@@ -64,7 +64,7 @@ graph TD
 | 10 | (ถ้า 9b) หัวหน้าเปิด LIFF + ตัดสิน | หัวหน้า | supervisor_qty, photos[4] | LIFF → Apps Script (submitSupervisorTiebreaker) |
 | 11 | apply Stock (qty=supervisor_qty) | Apps Script | — | Sheet + LINE |
 
-### Flow B: หยิบออกไปแพค (outbound)
+### Flow B: เตรียมแพ็คไปแพค (outbound)
 - เหมือน Flow A แต่ apply Stock เป็นลบ (qty_on_hand -= qty)
 - ก่อน apply ตรวจ qty_on_hand >= qty — ถ้าไม่พอ reject + push manager
 
@@ -173,7 +173,7 @@ graph TD
 | iOS file input bypass `capture` → เลือก gallery | ใช้ getUserMedia เท่านั้น (ห้าม `<input type=file>`) | camera.js |
 | Sheet `08:00` กลายเป็น Date | format Date → 'HH:mm' string | Config.gs::readSheetConfig_ |
 | Owner กด approve ซ้ำ (LINE flex postback ซ้ำ) | เช็ค status ก่อน update — ถ้าไม่ใช่ pending_owner → no-op | Return/Cancel handlers |
-| Stock ติดลบ (หยิบออกเกิน) | reject ตอน outbound double-blind ตรงกัน + qty > qty_on_hand | Outbound.gs |
+| Stock ติดลบ (เตรียมแพ็คเกิน) | reject ตอน outbound double-blind ตรงกัน + qty > qty_on_hand | Outbound.gs |
 | 2 owner approve return คนละ flex card พร้อมกัน | LockService.tryGetLock 5 วินาที + เช็ค status ก่อน | Return.gs::handleApproveReturn |
 
 ---

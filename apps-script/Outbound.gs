@@ -14,7 +14,7 @@
  */
 
 /**
- * หยิบออกไปแพค — double-blind
+ * เตรียมแพ็คไปแพค — double-blind
  *
  * เหมือน Inbound แต่:
  *   - movement_type='outbound'
@@ -75,7 +75,7 @@ function _handleOutboundRound1_(lineUserId, name, productId, qty, photos) {
       return {
         ok: false, error: 'insufficient_stock',
         qty_on_hand: stockNow, requested: qty,
-        message: 'หยิบออกไม่ได้ — สต๊อกมี ' + stockNow + ' ชิ้น แต่จะหยิบ ' + qty,
+        message: 'เตรียมแพ็คไม่ได้ — สต๊อกมี ' + stockNow + ' ชิ้น แต่จะหยิบ ' + qty,
       };
     }
   }
@@ -111,7 +111,7 @@ function _handleOutboundRound1_(lineUserId, name, productId, qty, photos) {
     safePushToAllOwners_([{
       type: 'text',
       text:
-        '⚠️ หยิบออก รอ approve\n' +
+        '⚠️ เตรียมแพ็ค รอ approve\n' +
         'รหัส: ' + movementId + '\n' +
         'สินค้า: ' + productName + '\n' +
         'จำนวน: ' + qty + ' ชิ้น\n' +
@@ -194,7 +194,7 @@ function _handleOutboundRound2_(lineUserId, name, productId, qty, photos, pairin
       submitter2_name: name,
       submitter2_qty: qty,
       photo_urls: combined,
-    }, 'movement', 'หยิบออก')], 'handleSubmitOutbound');
+    }, 'movement', 'เตรียมแพ็ค')], 'handleSubmitOutbound');
     return {
       ok: true,
       movementId: pairingMovementId,
@@ -215,7 +215,7 @@ function _handleOutboundRound2_(lineUserId, name, productId, qty, photos, pairin
     safePushToAllManagers_([{
       type: 'text',
       text:
-        '⚠️ หยิบออกไม่ได้ — ของไม่พอ\n' +
+        '⚠️ เตรียมแพ็คไม่ได้ — ของไม่พอ\n' +
         'รหัส: ' + pairingMovementId + '\n' +
         'สินค้า: ' + productName + '\n' +
         'ต้องการ: ' + qty + ' ชิ้น\n' +
@@ -245,7 +245,7 @@ function _handleOutboundRound2_(lineUserId, name, productId, qty, photos, pairin
   safePushToAllManagers_([{
     type: 'text',
     text:
-      'หยิบออก confirmed\n' +
+      'เตรียมแพ็ค confirmed\n' +
       'รหัส: ' + pairingMovementId + '\n' +
       'สินค้า: ' + productName + '\n' +
       'จำนวน: -' + qty + ' ชิ้น\n' +

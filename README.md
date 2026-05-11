@@ -1,6 +1,6 @@
 # Vorda Warehouse
 
-ระบบคลังสินค้า Vorda Skincare — บันทึกทุก movement (รับเข้า/หยิบออก/เสียหาย/ตีคืน/ยกเลิก) แบบ double-blind 2 คน + ตรวจนับรายสัปดาห์ พร้อม approve flow ผ่าน LINE
+ระบบคลังสินค้า Vorda Skincare — บันทึกทุก movement (รับเข้า/เตรียมแพ็ค/เสียหาย/ตีคืน/ยกเลิก) แบบ double-blind 2 คน + ตรวจนับรายสัปดาห์ พร้อม approve flow ผ่าน LINE
 
 **Stack:** GitHub Pages (LIFF) + Apps Script (API) + Google Sheet (DB) + LINE Messaging API + Drive (storage)
 
@@ -44,7 +44,7 @@ vorda-warehouse/
 | Flow | ใครทำ | Double-blind? | รูป | VDO |
 |---|---|---|---|---|
 | รับเข้าจากโรงงาน | staff 2 คน | ✅ | 4 มุม | — |
-| หยิบออกไปแพค | staff 2 คน | ✅ | 4 มุม | — |
+| เตรียมแพ็คไปแพค | staff 2 คน | ✅ | 4 มุม | — |
 | ตรวจนับ (สัปดาห์ละครั้ง) | staff 2 คน | ✅ | 4 มุม | — |
 | เสียหาย ของเสีย | staff 2 คน | ✅ | 4 มุม | — |
 | ตีคืนสินค้า | staff 1 + owner approve | — | optional | ✅ ตอนแกะ |

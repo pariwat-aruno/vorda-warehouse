@@ -10,7 +10,7 @@ setup_rich_menu.py — สร้าง + อัปโหลด rich menu ขอ�
 idempotent: ถ้าเจอ rich menu ชื่อ "vorda-warehouse-main" อยู่แล้วจะลบทิ้งก่อน
 
 Layout (2500x1686, 7 cells):
-  [รับเข้า]   [หยิบออก]  [ตรวจนับ]    <- row 1 (สูง 648)
+  [รับเข้า]   [เตรียมแพ็ค]  [ตรวจนับ]    <- row 1 (สูง 648)
   [เสียหาย]  [ตีคืน]    [ยกเลิก]      <- row 2 (สูง 648)
   [   เจ้าของ  (เต็มแถว)   ]            <- row 3 (สูง 390, slate)
 """
@@ -55,7 +55,7 @@ SLATE       = (55, 65, 81)
 # layout flag: 'grid' = ใช้ตำแหน่งใน 3×2, 'wide' = เต็มแถวล่าง
 SECTIONS = [
     {"label": "รับเข้า",   "sublabel": "จากโรงงาน",      "color": CHERRY,      "liff": LIFF_INBOUND,  "layout": "grid", "row": 0, "col": 0},
-    {"label": "หยิบออก",   "sublabel": "ไปแพคส่ง",       "color": CHERRY,      "liff": LIFF_OUTBOUND, "layout": "grid", "row": 0, "col": 1},
+    {"label": "เตรียมแพ็ค",   "sublabel": "ไปแพคส่ง",       "color": CHERRY,      "liff": LIFF_OUTBOUND, "layout": "grid", "row": 0, "col": 1},
     {"label": "ตรวจนับ",  "sublabel": "สัปดาห์ละครั้ง",  "color": CHERRY_DARK, "liff": LIFF_COUNT,    "layout": "grid", "row": 0, "col": 2},
     {"label": "เสียหาย",  "sublabel": "ของเสีย/แตก",    "color": CHERRY_DARK, "liff": LIFF_ADJUST,   "layout": "grid", "row": 1, "col": 0},
     {"label": "ตีคืน",     "sublabel": "ลูกค้าส่งคืน",    "color": CHERRY_DARK, "liff": LIFF_RETURN,   "layout": "grid", "row": 1, "col": 1},

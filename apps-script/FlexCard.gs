@@ -260,7 +260,7 @@ function buildDailyReportCard(report) {
       contents: [
         { type: 'text', text: 'การเคลื่อนไหวสต๊อก', weight: 'bold', size: 'sm', color: '#555555' },
         _flexRow_('รับเข้า', '+' + (byType.inbound || 0)),
-        _flexRow_('หยิบออก', '-' + (byType.outbound || 0)),
+        _flexRow_('เตรียมแพ็ค', '-' + (byType.outbound || 0)),
         _flexRow_('เสียหาย', '-' + (byType.adjust || 0)),
         _flexRow_('ตีคืนเข้า', '+' + (byType.return_in || 0)),
         _flexRow_('ยกเลิกเข้า', '+' + (byType.cancel_in || 0)),
@@ -303,7 +303,7 @@ function buildWeeklyReportCard(report) {
       contents: [
         { type: 'text', text: 'การเคลื่อนไหวสต๊อกรวมสัปดาห์', weight: 'bold', size: 'sm', color: '#555555' },
         _flexRow_('รับเข้า', '+' + (byType.inbound || 0)),
-        _flexRow_('หยิบออก', '-' + (byType.outbound || 0)),
+        _flexRow_('เตรียมแพ็ค', '-' + (byType.outbound || 0)),
         _flexRow_('เสียหาย', '-' + (byType.adjust || 0)),
         _flexRow_('ตีคืนเข้า', '+' + (byType.return_in || 0)),
         _flexRow_('ยกเลิกเข้า', '+' + (byType.cancel_in || 0)),

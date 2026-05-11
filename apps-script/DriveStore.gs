@@ -3,7 +3,7 @@
  *
  * subfolder enum สำหรับ vorda-warehouse:
  *   - 'inbound'   = รูปรับเข้าจากโรงงาน
- *   - 'outbound'  = รูปหยิบออกไปแพค
+ *   - 'outbound'  = รูปเตรียมแพ็คไปแพค
  *   - 'count'     = รูปตรวจนับสัปดาห์ละครั้ง
  *   - 'adjust'    = รูปเสียหาย/ของเสีย
  *   - 'return'    = VDO + รูปตีคืนสินค้า + screenshot ขั้นเคลม
