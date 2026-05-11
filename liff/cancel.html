@@ -122,6 +122,12 @@
       state.profile = state.profile || {};
       state.profile.displayName = state.myStatus.name;
     }
+    // single-staff mode → ซ่อน warning-block + subtitle เหมือนรับเข้า
+    if (state.myStatus && state.myStatus.settings && state.myStatus.settings.single_staff_mode) {
+      document.querySelectorAll('.warning-block').forEach(el => el.style.display = 'none');
+      const subtitle = document.querySelector('.subtitle');
+      if (subtitle) subtitle.style.display = 'none';
+    }
 
     try {
       const res = await api.post('getProducts', { lineUserId: state.lineUserId });
