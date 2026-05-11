@@ -121,7 +121,7 @@
   <script type="module">
     import { CONFIG } from './js/config.js';
     import { state } from './js/auth.js';
-    import { ensureRegistered } from './js/guard.js';
+    import { ensureRegistered, showDetailModal, fmtDateTime } from './js/guard.js';
     import { api } from './js/api.js';
     import { showError, clearError } from './js/utils.js';
 
@@ -266,37 +266,50 @@
 
     function makeMovementItem(m) {
       const div = document.createElement('div');
-      div.className = 'dash-item';
+      div.className = 'dash-item clickable';
       const type = String(m.movement_type || '');
       const typeLabel = type === 'inbound' ? 'รับเข้า'
                       : type === 'outbound' ? 'หยิบออก'
                       : type === 'adjust' ? 'ตัดสต๊อก' : type;
-      const photoUrls = String(m.photo_urls || '').split(',').filter(u => u && u.trim());
-      const thumb = photoUrls.length > 0
-        ? '<img src="' + esc(photoUrls[0].replace(/\/file\/d\/([^\/]+).*$/, 'https://drive.google.com/thumbnail?id=$1&sz=w400')) + '" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle">'
-        : '';
+      const photoCount = String(m.photo_urls || '').split(',').filter(u => u.trim()).length;
       div.innerHTML =
-        '<div>' + thumb + '<strong>' + esc(typeLabel) + '</strong> · ' + esc(m.movement_id) + '</div>' +
-        '<div class="meta">' + esc(m.product_name) + ' × ' + (m.submitter1_qty || 0) +
+        '<div><strong>' + esc(typeLabel) + '</strong> · ' + esc(m.movement_id) + '</div>' +
+        '<div class="meta">' + esc(m.product_name) + ' × ' + (m.submitter1_qty || 0) + ' ชิ้น' +
           (m.reason ? ' · ' + esc(m.reason) : '') + '</div>' +
-        '<div class="meta">โดย ' + esc(m.submitter1_name || '-') + '</div>' +
-        '<div class="actions"></div>';
-      const acts = div.querySelector('.actions');
-      const acc = document.createElement('button');
-      acc.className = 'btn-primary'; acc.textContent = 'Approve';
-      acc.onclick = () => approveMovement(m.movement_id, 'accept', div);
-      const rej = document.createElement('button');
-      rej.className = 'btn-neutral'; rej.textContent = 'Reject';
-      rej.onclick = () => approveMovement(m.movement_id, 'reject', div);
-      acts.appendChild(acc); acts.appendChild(rej);
+        '<div class="meta">โดย ' + esc(m.submitter1_name || '-') + ' · ' + fmtDateTime(m.submitter1_at) + ' · 📸 ' + photoCount + '</div>' +
+        '<a class="view-link">ดูรายละเอียด + Approve →</a>';
+      div.onclick = () => openMovementDetail(m, typeLabel);
       return div;
     }
 
-    async function approveMovement(movementId, decision, itemEl) {
+    function openMovementDetail(m, typeLabel) {
+      showDetailModal({
+        title: typeLabel + ' รอ approve',
+        rows: [
+          ['ประเภท', typeLabel],
+          ['รหัส', m.movement_id],
+          ['สินค้า', m.product_name],
+          ['จำนวน', (m.submitter1_qty || 0) + ' ชิ้น', '#c8102e'],
+          ...(m.reason ? [['เหตุผล', m.reason]] : []),
+          ['พนักงาน', m.submitter1_name || '-'],
+          ['LINE userId', m.submitter1_user_id || '-'],
+          ['ส่งเมื่อ', fmtDateTime(m.submitter1_at)],
+          ['สถานะ', m.status],
+        ],
+        photoUrls: m.photo_urls,
+        actions: [
+          { label: 'Approve (apply Stock)', className: 'btn-primary',
+            onClick: (close) => { close(); approveMovement(m.movement_id, 'accept'); } },
+          { label: 'Reject', className: 'btn-neutral',
+            onClick: (close) => { close(); approveMovement(m.movement_id, 'reject'); } },
+        ],
+      });
+    }
+
+    async function approveMovement(movementId, decision) {
       const confirmText = decision === 'accept'
         ? 'Approve (apply Stock)?' : 'Reject (ไม่กระทบ Stock)?';
       if (!confirm(movementId + '\n' + confirmText)) return;
-      disableButtons(itemEl);
       try {
         const res = await api.post('approveMovement', {
           lineUserId: state.lineUserId, movementId: movementId, decision: decision,
@@ -305,7 +318,6 @@
           (res.qty_after != null ? ' (Stock ' + res.qty_after + ')' : ''));
         await loadDashboard();
       } catch (err) {
-        enableButtons(itemEl);
         showError(ui.err, movementId + ': ' + (err.code || err.message) +
           (err.data && err.data.message ? ' — ' + err.data.message : ''));
       }
@@ -313,111 +325,195 @@
 
     function makeReturnItem(r) {
       const div = document.createElement('div');
-      div.className = 'dash-item';
+      div.className = 'dash-item clickable';
       const cond = String(r.condition).toLowerCase() === 'good' ? 'ดี' : 'ไม่ดี';
       const isOur = (r.is_our_product === true || String(r.is_our_product).toLowerCase() === 'true');
-      const vdo = r.video_url ? '<a href="' + r.video_url + '" target="_blank">ดู VDO</a>' : '';
+      const photoCount = String(r.photo_urls || '').split(',').filter(u => u.trim()).length;
       div.innerHTML =
         '<div><strong>' + esc(r.return_id) + '</strong> · tracking: ' + esc(r.tracking_number) + '</div>' +
-        '<div class="meta">' + esc(r.product_name || '(ไม่ใช่ของเรา)') + ' × ' + r.qty + ' · สภาพ ' + cond + ' · ของเรา: ' + (isOur ? 'ใช่' : 'ไม่ใช่') + '</div>' +
-        '<div class="meta">โดย ' + esc(r.staff_name) + '   ' + vdo + '</div>' +
-        '<div class="actions"></div>';
-      const acts = div.querySelector('.actions');
-
-      const accept = document.createElement('button');
-      accept.className = 'btn-primary';
-      accept.textContent = 'รับเข้า Stock';
-      accept.disabled = !(isOur && cond === 'ดี');
-      accept.title = isOur && cond === 'ดี' ? '' : 'ใช้เฉพาะ "ของเรา + สภาพดี"';
-      accept.onclick = function () { approveReturn(r.return_id, 'accept_to_stock', div); };
-
-      const reject = document.createElement('button');
-      reject.className = 'btn-neutral';
-      reject.textContent = 'Reject';
-      reject.onclick = function () { approveReturn(r.return_id, 'reject_bad', div); };
-
-      const forward = document.createElement('button');
-      forward.className = 'btn-secondary';
-      forward.textContent = 'ส่งเคลม';
-      forward.onclick = function () { approveReturn(r.return_id, 'forward_to_claim', div); };
-
-      acts.appendChild(accept);
-      acts.appendChild(reject);
-      acts.appendChild(forward);
+        '<div class="meta">' + esc(r.product_name || '(ไม่ใช่ของเรา)') + ' × ' + r.qty +
+          ' · สภาพ ' + cond + ' · ของเรา: ' + (isOur ? 'ใช่' : 'ไม่ใช่') + '</div>' +
+        '<div class="meta">โดย ' + esc(r.staff_name) + ' · ' + fmtDateTime(r.staff_at) +
+          ' · 📸 ' + photoCount + (r.video_url ? ' · 🎬 VDO' : '') + '</div>' +
+        '<a class="view-link">ดูรายละเอียด + Approve →</a>';
+      div.onclick = () => openReturnDetail(r, cond, isOur);
       return div;
+    }
+
+    function openReturnDetail(r, cond, isOur) {
+      const condColor = cond === 'ดี' ? '#16a34a' : '#c8102e';
+      const actions = [];
+      if (isOur && cond === 'ดี') {
+        actions.push({
+          label: 'Accept (เข้า Stock +' + r.qty + ')', className: 'btn-primary',
+          onClick: (close) => { close(); approveReturn(r.return_id, 'accept_to_stock'); },
+        });
+      }
+      actions.push({
+        label: 'Reject (ไม่กระทบ Stock)', className: 'btn-neutral',
+        onClick: (close) => { close(); approveReturn(r.return_id, 'reject_bad'); },
+      });
+      actions.push({
+        label: 'ส่งเคลม supplier', className: 'btn-secondary',
+        onClick: (close) => { close(); approveReturn(r.return_id, 'forward_to_claim'); },
+      });
+
+      showDetailModal({
+        title: 'ตีคืน รอ approve',
+        rows: [
+          ['รหัส', r.return_id],
+          ['tracking', r.tracking_number],
+          ['สินค้า', r.product_name || '(ไม่ใช่ของเรา)'],
+          ['จำนวน', r.qty + ' ชิ้น'],
+          ['สภาพ', cond, condColor],
+          ['ของเรา', isOur ? 'ใช่' : 'ไม่ใช่'],
+          ['พนักงาน', r.staff_name || '-'],
+          ['LINE userId', r.staff_user_id || '-'],
+          ['ส่งเมื่อ', fmtDateTime(r.staff_at)],
+          ['สถานะ', r.status],
+        ],
+        photoUrls: r.photo_urls,
+        videoUrl: r.video_url,
+        actions: actions,
+      });
     }
 
     function makeCancelItem(c) {
       const div = document.createElement('div');
-      div.className = 'dash-item';
+      div.className = 'dash-item clickable';
+      const photoCount = String(c.photo_urls || '').split(',').filter(u => u.trim()).length;
       div.innerHTML =
         '<div><strong>' + esc(c.cancel_id) + '</strong> · tracking: ' + esc(c.tracking_number) + '</div>' +
-        '<div class="meta">' + esc(c.product_name) + ' × ' + c.qty + ' · โดย ' + esc(c.staff_name) + '</div>' +
-        '<div class="actions"></div>';
-      const acts = div.querySelector('.actions');
-
-      const acc = document.createElement('button');
-      acc.className = 'btn-primary'; acc.textContent = 'Accept (เข้า Stock)';
-      acc.onclick = function () { approveCancel(c.cancel_id, 'accept', div); };
-
-      const rej = document.createElement('button');
-      rej.className = 'btn-neutral'; rej.textContent = 'Reject';
-      rej.onclick = function () { approveCancel(c.cancel_id, 'reject', div); };
-
-      acts.appendChild(acc); acts.appendChild(rej);
+        '<div class="meta">' + esc(c.product_name) + ' × ' + c.qty + ' ชิ้น</div>' +
+        '<div class="meta">โดย ' + esc(c.staff_name) + ' · ' + fmtDateTime(c.staff_at) + ' · 📸 ' + photoCount + '</div>' +
+        '<a class="view-link">ดูรายละเอียด + Approve →</a>';
+      div.onclick = () => openCancelDetail(c);
       return div;
+    }
+
+    function openCancelDetail(c) {
+      showDetailModal({
+        title: 'ยกเลิกออเดอร์ รอ approve',
+        rows: [
+          ['รหัส', c.cancel_id],
+          ['tracking', c.tracking_number],
+          ['สินค้า', c.product_name],
+          ['จำนวน', c.qty + ' ชิ้น'],
+          ['พนักงาน', c.staff_name || '-'],
+          ['LINE userId', c.staff_user_id || '-'],
+          ['ส่งเมื่อ', fmtDateTime(c.staff_at)],
+          ['สถานะ', c.status],
+        ],
+        photoUrls: c.photo_urls,
+        actions: [
+          { label: 'Accept (เข้า Stock +' + c.qty + ')', className: 'btn-primary',
+            onClick: (close) => { close(); approveCancel(c.cancel_id, 'accept'); } },
+          { label: 'Reject', className: 'btn-neutral',
+            onClick: (close) => { close(); approveCancel(c.cancel_id, 'reject'); } },
+        ],
+      });
     }
 
     function makeVarianceItem(v) {
       const div = document.createElement('div');
-      div.className = 'dash-item';
+      div.className = 'dash-item clickable';
       const delta = Number(v.variance || 0);
       const deltaStr = (delta > 0 ? '+' : '') + delta;
+      const photoCount = String(v.photo_urls || '').split(',').filter(u => u.trim()).length;
+      const submitterName = v.submitter1_name || v.supervisor_name || '-';
+      const submitterAt = v.submitter1_at || v.supervisor_at;
       div.innerHTML =
         '<div><strong>' + esc(v.count_id) + '</strong> · ' + esc(v.product_name) + '</div>' +
         '<div class="meta">ในระบบ ' + v.system_qty + ' · นับจริง ' + v.final_qty + ' · ส่วนต่าง <strong>' + deltaStr + '</strong></div>' +
-        '<div class="actions"></div>';
-      const acts = div.querySelector('.actions');
-      const adj = document.createElement('button');
-      adj.className = 'btn-primary'; adj.textContent = 'ปรับยอดให้ตรง (' + deltaStr + ')';
-      adj.onclick = function () { adjustStock(v.count_id, delta, div); };
-      acts.appendChild(adj);
+        '<div class="meta">โดย ' + esc(submitterName) + ' · ' + fmtDateTime(submitterAt) + ' · 📸 ' + photoCount + '</div>' +
+        '<a class="view-link">ดูรายละเอียด + ปรับยอด →</a>';
+      div.onclick = () => openVarianceDetail(v);
       return div;
+    }
+
+    function openVarianceDetail(v) {
+      const delta = Number(v.variance || 0);
+      const deltaStr = (delta > 0 ? '+' : '') + delta;
+      const submitter1Q = v.submitter1_qty != null && v.submitter1_qty !== ''
+        ? v.submitter1_name + ' = ' + v.submitter1_qty : '-';
+      const submitter2Q = v.submitter2_qty != null && v.submitter2_qty !== ''
+        ? v.submitter2_name + ' = ' + v.submitter2_qty : '-';
+      const supervisorQ = v.supervisor_qty != null && v.supervisor_qty !== ''
+        ? v.supervisor_name + ' = ' + v.supervisor_qty : '-';
+      showDetailModal({
+        title: 'นับเทียบไม่ตรงระบบ',
+        rows: [
+          ['รหัส', v.count_id],
+          ['สินค้า', v.product_name],
+          ['ยอดในระบบ', v.system_qty],
+          ['ยอดนับจริง (final)', v.final_qty, '#c8102e'],
+          ['ส่วนต่าง', deltaStr, delta > 0 ? '#16a34a' : '#c8102e'],
+          ['คนนับ 1', submitter1Q],
+          ...(submitter2Q !== '-' ? [['คนนับ 2', submitter2Q]] : []),
+          ...(supervisorQ !== '-' ? [['หัวหน้าตัดสิน', supervisorQ]] : []),
+          ['เริ่มนับเมื่อ', fmtDateTime(v.submitter1_at)],
+          ['สถานะ', v.status],
+        ],
+        photoUrls: v.photo_urls,
+        actions: [
+          { label: 'ปรับยอดให้ตรง (' + deltaStr + ')', className: 'btn-primary',
+            onClick: (close) => { close(); adjustStock(v.count_id, delta); } },
+        ],
+      });
     }
 
     function makeClaimItem(c) {
       const div = document.createElement('div');
-      div.className = 'dash-item';
+      div.className = 'dash-item clickable';
       div.innerHTML =
         '<div><strong>' + esc(c.claim_id) + '</strong> · tracking: ' + esc(c.tracking_number) + '</div>' +
         '<div class="meta">stage: <strong>' + esc(c.stage) + '</strong></div>' +
-        '<div class="actions"></div>';
-      const acts = div.querySelector('.actions');
-      if (c.stage === 'submitting') {
-        const btn = document.createElement('button');
-        btn.className = 'btn-primary'; btn.textContent = 'ยื่นเรื่องแล้ว (upload screenshot)';
-        btn.onclick = function () { promptScreenshot(c.claim_id, 'submitted', div); };
-        acts.appendChild(btn);
-      } else if (c.stage === 'submitted') {
-        const succ = document.createElement('button');
-        succ.className = 'btn-primary'; succ.textContent = 'ปิดเคส: success';
-        succ.onclick = function () { promptScreenshot(c.claim_id, 'closed', div, 'success'); };
-
-        const fail = document.createElement('button');
-        fail.className = 'btn-neutral'; fail.textContent = 'ปิดเคส: fail';
-        fail.onclick = function () { promptScreenshot(c.claim_id, 'closed', div, 'fail'); };
-
-        acts.appendChild(succ); acts.appendChild(fail);
-      }
+        '<div class="meta">return: ' + esc(c.return_id) + ' · update ' + fmtDateTime(c.last_updated_at) + '</div>' +
+        '<a class="view-link">ดูรายละเอียด →</a>';
+      div.onclick = () => openClaimDetail(c);
       return div;
     }
 
-    async function approveReturn(returnId, decision, itemEl) {
+    function openClaimDetail(c) {
+      const photoUrls = [c.screenshot_submitting, c.screenshot_submitted, c.screenshot_closed]
+        .filter(u => u && u.trim());
+      const actions = [];
+      if (c.stage === 'submitting') {
+        actions.push({
+          label: 'ยื่นเรื่องแล้ว → submitted (อัพ screenshot)', className: 'btn-primary',
+          onClick: (close) => { close(); promptScreenshot(c.claim_id, 'submitted'); },
+        });
+      } else if (c.stage === 'submitted') {
+        actions.push({
+          label: 'ปิดเคส: success', className: 'btn-primary',
+          onClick: (close) => { close(); promptScreenshot(c.claim_id, 'closed', 'success'); },
+        });
+        actions.push({
+          label: 'ปิดเคส: fail', className: 'btn-neutral',
+          onClick: (close) => { close(); promptScreenshot(c.claim_id, 'closed', 'fail'); },
+        });
+      }
+      showDetailModal({
+        title: 'เคลม supplier',
+        rows: [
+          ['รหัส', c.claim_id],
+          ['return อ้างอิง', c.return_id],
+          ['tracking', c.tracking_number],
+          ['stage ปัจจุบัน', c.stage, '#c8102e'],
+          ['ปิดแล้วเป็น', c.closed_result || '-'],
+          ['อัปเดตล่าสุด', fmtDateTime(c.last_updated_at)],
+          ['สร้างเมื่อ', fmtDateTime(c.created_at)],
+        ],
+        photoUrls: photoUrls.join(','),
+        actions: actions,
+      });
+    }
+
+    async function approveReturn(returnId, decision) {
       const confirmText = decision === 'accept_to_stock' ? 'รับเข้า Stock?'
                         : decision === 'reject_bad' ? 'Reject (ไม่กระทบ Stock)?'
                         : 'ส่งเคลม supplier?';
       if (!confirm(returnId + '\n' + confirmText)) return;
-      disableButtons(itemEl);
       try {
         const res = await api.post('approveReturn', {
           lineUserId: state.lineUserId, returnId: returnId, decision: decision,
@@ -425,15 +521,13 @@
         flash(ui.ok, returnId + ' → ' + res.status);
         await loadDashboard();
       } catch (err) {
-        enableButtons(itemEl);
         showError(ui.err, returnId + ': ' + (err.code || err.message) + (err.data && err.data.message ? ' — ' + err.data.message : ''));
       }
     }
 
-    async function approveCancel(cancelId, decision, itemEl) {
+    async function approveCancel(cancelId, decision) {
       const confirmText = decision === 'accept' ? 'Accept (เข้า Stock +qty)?' : 'Reject?';
       if (!confirm(cancelId + '\n' + confirmText)) return;
-      disableButtons(itemEl);
       try {
         const res = await api.post('approveCancel', {
           lineUserId: state.lineUserId, cancelId: cancelId, decision: decision,
@@ -441,15 +535,13 @@
         flash(ui.ok, cancelId + ' → ' + res.status);
         await loadDashboard();
       } catch (err) {
-        enableButtons(itemEl);
         showError(ui.err, cancelId + ': ' + (err.code || err.message));
       }
     }
 
-    async function adjustStock(countId, deltaQty, itemEl) {
+    async function adjustStock(countId, deltaQty) {
       const reason = prompt('เหตุผลปรับยอด (เช่น "นับเทียบสัปดาห์ที่ 19"):', '') || '';
       if (!confirm(countId + '\nปรับยอด ' + (deltaQty > 0 ? '+' : '') + deltaQty + ' ?')) return;
-      disableButtons(itemEl);
       try {
         const res = await api.post('adjustStock', {
           lineUserId: state.lineUserId, countId: countId, deltaQty: deltaQty, reason: reason,
@@ -457,19 +549,16 @@
         flash(ui.ok, countId + ' ปรับยอดแล้ว — Stock = ' + res.qty_after);
         await loadDashboard();
       } catch (err) {
-        enableButtons(itemEl);
         showError(ui.err, countId + ': ' + (err.code || err.message));
       }
     }
 
-    function promptScreenshot(claimId, newStage, itemEl, closedResult) {
-      // open file picker → resize → base64 → upload
+    function promptScreenshot(claimId, newStage, closedResult) {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'image/*';
       inp.onchange = async function () {
         const file = inp.files && inp.files[0];
         if (!file) return;
-        disableButtons(itemEl);
         try {
           const b64 = await fileToB64Resized(file, 1280, 0.85);
           const payload = {
@@ -481,7 +570,6 @@
           flash(ui.ok, claimId + ' → ' + res.stage);
           await loadDashboard();
         } catch (err) {
-          enableButtons(itemEl);
           showError(ui.err, claimId + ': ' + (err.code || err.message));
         }
       };

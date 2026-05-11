@@ -413,10 +413,12 @@ textarea:focus { outline: none; border-color: var(--cherry); box-shadow: 0 0 0 3
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
   z-index: 200; padding: 16px;
+  overflow-y: auto;
 }
 .id-modal {
   background: var(--white); border-radius: 12px;
-  padding: 20px; max-width: 360px; width: 100%;
+  padding: 20px; max-width: 480px; width: 100%;
+  max-height: 90vh; overflow-y: auto;
 }
 .id-modal h3 { margin: 0 0 8px; color: var(--cherry); font-size: 16px; }
 .id-modal .id-box {
@@ -424,6 +426,42 @@ textarea:focus { outline: none; border-color: var(--cherry); box-shadow: 0 0 0 3
   border-radius: 8px; padding: 12px;
   font-family: "SF Mono", Menlo, monospace; font-size: 13px;
   word-break: break-all; margin: 10px 0;
+}
+
+/* ===== Detail modal — for queue items ===== */
+.detail-modal-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 6px 12px; font-size: 13px; margin-bottom: 14px; }
+.detail-modal-grid .k { color: var(--muted); font-size: 12px; align-self: start; padding-top: 4px; }
+.detail-modal-grid .v { color: var(--text); word-break: break-word; }
+.detail-modal-grid .v strong { color: var(--cherry); }
+
+.photo-thumbs {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 6px; margin: 10px 0;
+}
+.photo-thumbs img {
+  width: 100%; aspect-ratio: 1; object-fit: cover;
+  border-radius: 6px; border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+.photo-thumbs a { display: block; }
+
+.photo-fullscreen {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 400; cursor: zoom-out;
+  padding: 20px;
+}
+.photo-fullscreen img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.detail-section { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 12px; }
+.detail-section .label { color: var(--cherry); }
+
+/* clickable list item */
+.dash-item.clickable { cursor: pointer; }
+.dash-item.clickable:active { background: var(--cherry-tint); }
+.dash-item .view-link {
+  display: inline-block; margin-top: 6px;
+  color: var(--cherry); font-size: 12px; font-weight: 600;
 }
 
 /* ===== Footer brand (ทุก page) ===== */

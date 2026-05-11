@@ -107,22 +107,18 @@ export async function initMovementForm(opts) {
     state.profile.displayName = state.myStatus.name;
   }
 
-  // single-staff mode → ซ่อน round toggle (ไม่มีรอบ 2)
+  // single-staff mode → ซ่อนทุก guidance ของ double-blind (toggle + warnings) เหลือแต่ฟอร์ม
   const singleMode = !!(state.myStatus && state.myStatus.settings && state.myStatus.settings.single_staff_mode);
   if (singleMode) {
-    // ซ่อน toggle + section รอบ 2
     const toggle = ui.roundR1 && ui.roundR1.parentNode;
     if (toggle && toggle.classList && toggle.classList.contains('round-toggle')) {
       toggle.style.display = 'none';
     }
+    if (ui.r1Sec) ui.r1Sec.style.display = 'none';
     if (ui.r2Sec) ui.r2Sec.style.display = 'none';
-    // เปลี่ยนข้อความ warning ใน r1 section
-    if (ui.r1Sec) {
-      ui.r1Sec.innerHTML =
-        '<div class="warning-block">' +
-        '<strong>โหมด staff คนเดียว:</strong> นับเอง บันทึก → เจ้าของ approve' +
-        '</div>';
-    }
+    // ซ่อน subtitle "double-blind 2 คน — ..." เพราะไม่มี double-blind แล้ว
+    const subtitle = document.querySelector('.subtitle');
+    if (subtitle) subtitle.style.display = 'none';
   }
 
   // ===== products =====

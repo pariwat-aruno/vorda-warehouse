@@ -167,3 +167,126 @@ function esc(s) {
     '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;'
   }[c]));
 }
+
+/**
+ * แสดง full-screen รูป (กดรูปใน thumb แล้วขยาย)
+ */
+export function showFullscreenImage(url) {
+  const fs = document.createElement('div');
+  fs.className = 'photo-fullscreen';
+  fs.innerHTML = '<img src="' + esc(url) + '" />';
+  fs.onclick = () => fs.remove();
+  document.body.appendChild(fs);
+}
+
+/**
+ * แปลง Drive URL → thumbnail (กด open original ในแท็บใหม่ได้)
+ */
+function driveToThumb(url, size = 800) {
+  if (!url) return '';
+  const m = String(url).match(/\/d\/([^\/]+)/);
+  if (!m) return url;
+  return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w' + size;
+}
+
+/**
+ * format datetime → 'd MMM yyyy HH:mm' (Asia/Bangkok)
+ * รับทั้ง Date, ISO string
+ */
+export function fmtDateTime(v) {
+  if (!v) return '-';
+  const d = (v instanceof Date) ? v : new Date(String(v));
+  if (!d || isNaN(d.getTime())) return String(v);
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const beYear = d.getFullYear() + 543;
+  return d.getDate() + ' ' + months[d.getMonth()] + ' ' + beYear + ' ' + hh + ':' + mm;
+}
+
+/**
+ * Detail modal สำหรับทุก queue item — render rows + photos + actions
+ *
+ * @param {object} opts
+ *   - title: 'ตีคืน รอ approve'
+ *   - rows: [['ชื่อ field', 'ค่า', optional valueColor], ...]
+ *   - photoUrls: array of Drive URLs (or comma-string)
+ *   - videoUrl: string (optional)
+ *   - actions: [{ label, className, onClick }, ...]
+ *     onClick รับ (close) เรียก close() เมื่อต้องการปิด modal
+ */
+export function showDetailModal(opts) {
+  opts = opts || {};
+  const overlay = document.createElement('div');
+  overlay.className = 'id-modal-overlay';
+  overlay.style.zIndex = '350';
+
+  let photoUrls = opts.photoUrls || [];
+  if (typeof photoUrls === 'string') {
+    photoUrls = photoUrls.split(',').map(s => s.trim()).filter(s => s.length);
+  }
+
+  let rowsHtml = '<div class="detail-modal-grid">';
+  (opts.rows || []).forEach(([k, v, color]) => {
+    const style = color ? ' style="color:' + color + ';font-weight:600"' : '';
+    rowsHtml += '<div class="k">' + esc(k) + '</div><div class="v"' + style + '>' + (v == null || v === '' ? '-' : esc(String(v))) + '</div>';
+  });
+  rowsHtml += '</div>';
+
+  let photoHtml = '';
+  if (photoUrls.length > 0) {
+    photoHtml += '<div class="detail-section"><div class="label">รูป (' + photoUrls.length + ')</div>';
+    photoHtml += '<div class="photo-thumbs">';
+    photoUrls.forEach(u => {
+      const thumb = driveToThumb(u, 800);
+      photoHtml += '<a data-orig="' + esc(thumb) + '"><img src="' + esc(thumb) + '" /></a>';
+    });
+    photoHtml += '</div></div>';
+  }
+
+  let videoHtml = '';
+  if (opts.videoUrl) {
+    videoHtml += '<div class="detail-section"><div class="label">VDO</div>';
+    videoHtml += '<a class="btn-secondary" style="display:block;text-align:center;text-decoration:none;padding:10px;" href="' + esc(opts.videoUrl) + '" target="_blank">เปิด VDO ใน Drive</a>';
+    videoHtml += '</div>';
+  }
+
+  let actionsHtml = '<div style="margin-top:14px; display: grid; gap: 6px;">';
+  (opts.actions || []).forEach((a, i) => {
+    actionsHtml += '<button class="' + (a.className || 'btn-secondary') + '" type="button" data-aidx="' + i + '">' + esc(a.label) + '</button>';
+  });
+  actionsHtml += '<button class="btn-secondary" type="button" id="_dmClose">ปิด</button>';
+  actionsHtml += '</div>';
+
+  overlay.innerHTML =
+    '<div class="id-modal">' +
+    '<h3>' + esc(opts.title || 'รายละเอียด') + '</h3>' +
+    rowsHtml +
+    photoHtml +
+    videoHtml +
+    actionsHtml +
+    '</div>';
+
+  function close() { overlay.remove(); }
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.getElementById('_dmClose').onclick = close;
+
+  // photo zoom
+  overlay.querySelectorAll('.photo-thumbs a').forEach(a => {
+    a.onclick = (e) => {
+      e.preventDefault();
+      const orig = a.getAttribute('data-orig');
+      showFullscreenImage(orig);
+    };
+  });
+
+  // action buttons
+  (opts.actions || []).forEach((a, i) => {
+    const btn = overlay.querySelector('button[data-aidx="' + i + '"]');
+    if (btn) btn.onclick = () => a.onClick(close);
+  });
+
+  return close;
+}
