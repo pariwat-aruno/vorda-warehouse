@@ -194,10 +194,16 @@
       showError(ui.err, 'โหลดสินค้าไม่ได้: ' + (err.code || err.message));
     }
 
-    try {
-      stream = await startCamera(ui.camVid, 'environment');
-    } catch (err) {
-      showError(ui.err, 'เปิดกล้องไม่ได้: ' + err.message);
+    // กล้องจะเปิดตอนกดถ่ายครั้งแรก (lazy) — กัน lock กล้องตอน scan barcode
+    async function ensureCamera() {
+      if (stream) return true;
+      try {
+        stream = await startCamera(ui.camVid, 'environment');
+        return true;
+      } catch (err) {
+        showError(ui.err, 'เปิดกล้องไม่ได้: ' + err.message);
+        return false;
+      }
     }
 
     function renderPhotos() {
@@ -220,9 +226,13 @@
     }
     renderPhotos();
 
-    ui.captureBtn.addEventListener('click', function () {
+    ui.captureBtn.addEventListener('click', async function () {
       if (photos.length >= 4) return;
       clearError(ui.err);
+      if (!stream) {
+        const ok = await ensureCamera();
+        if (!ok) return;
+      }
       try {
         const b64 = captureFromVideoWithStamp(ui.camVid, 'ยกเลิก ' + (photos.length + 1));
         photos.push(b64);
