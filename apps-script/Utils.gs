@@ -120,6 +120,42 @@ function formatThaiDateTime(d) {
 }
 
 /**
+ * auto-register staff ถ้ายังไม่มีใน Sheet `Staff` — return record (มีอยู่แล้วก็คืนตัวเดิม)
+ *
+ * gen staff_id ถัดไป (S-001, S-002, ...) — role auto จาก isOwner/isSupervisor
+ */
+function autoRegisterStaff_(lineUserId, displayName) {
+  if (!lineUserId) return null;
+  const existing = findStaffByLineUserId(lineUserId);
+  if (existing) return existing;
+
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Staff');
+  if (!sh) throw new Error('sheet Staff not found');
+
+  const last = sh.getLastRow();
+  let maxNum = 0;
+  if (last >= 2) {
+    sh.getRange(2, 1, last - 1, 1).getValues().forEach(function (r) {
+      const id = String(r[0] || '');
+      const m = id.match(/^S-(\d+)$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+  }
+  const newId = 'S-' + padLeft_(maxNum + 1, 3);
+  // isOwner/isSupervisor มี try-catch — ถ้า config ยังว่าง return false → role='staff'
+  const role = isOwner(lineUserId) ? 'owner' : (isSupervisor(lineUserId) ? 'supervisor' : 'staff');
+  const name = displayName || 'unknown';
+  const now = nowBangkok();
+  sh.appendRow([newId, name, role, lineUserId, true, now]);
+
+  return { staff_id: newId, name: name, role: role, line_user_id: lineUserId, is_active: true, registered_at: now };
+}
+
+/**
  * lookup staff (พนักงาน + หัวหน้า + owner) จาก line_user_id
  * return: { staff_id, name, role, line_user_id, is_active } | null
  */

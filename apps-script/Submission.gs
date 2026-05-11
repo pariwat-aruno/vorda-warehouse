@@ -181,6 +181,130 @@ function handleCancelSubmission(payload) {
   }
 }
 
+// =====================================================================
+// SHARED HELPERS — ใช้ข้าม flow (Inbound / Outbound / Adjust / Return / Cancel / Count)
+// =====================================================================
+
+/**
+ * apply delta ไป Stock.qty_on_hand + update last_movement_*
+ * deltaQty: + (inbound/return_in/cancel_in), - (outbound/adjust)
+ * return: { qty_before, qty_after }
+ *
+ * ใช้ LockService 10s กัน race condition (2 movement พร้อมกัน apply Stock เดียว)
+ */
+function applyStockDelta_(productId, deltaQty, movementId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Stock');
+    if (!sh) throw new Error('sheet Stock not found');
+
+    const last = sh.getLastRow();
+    if (last < 2) throw new Error('Stock sheet empty');
+
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const pidIdx = headers.indexOf('product_id');
+    const qtyIdx = headers.indexOf('qty_on_hand');
+    const lmIdx = headers.indexOf('last_movement_id');
+    const lmAtIdx = headers.indexOf('last_movement_at');
+    const uatIdx = headers.indexOf('updated_at');
+
+    const data = sh.getRange(2, pidIdx + 1, last - 1, 1).getValues();
+    let rowIdx = -1;
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][0]) === String(productId)) {
+        rowIdx = i + 2;
+        break;
+      }
+    }
+    if (rowIdx < 0) throw new Error('product_id not in Stock: ' + productId);
+
+    const qtyBefore = Number(sh.getRange(rowIdx, qtyIdx + 1).getValue() || 0);
+    const qtyAfter = qtyBefore + Number(deltaQty);
+    const now = nowBangkok();
+    sh.getRange(rowIdx, qtyIdx + 1).setValue(qtyAfter);
+    sh.getRange(rowIdx, lmIdx + 1).setValue(movementId);
+    sh.getRange(rowIdx, lmAtIdx + 1).setValue(now);
+    sh.getRange(rowIdx, uatIdx + 1).setValue(now);
+
+    return { qty_before: qtyBefore, qty_after: qtyAfter };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/** ดึง product_name จาก Products sheet (active only) — return null ถ้าไม่เจอหรือ inactive */
+function lookupProductName_(productId) {
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  const sh = SpreadsheetApp.openById(sheetId).getSheetByName('Products');
+  const last = sh.getLastRow();
+  if (last < 2) return null;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const data = sh.getRange(2, 1, last - 1, headers.length).getValues();
+  const pidIdx = headers.indexOf('product_id');
+  const nameIdx = headers.indexOf('product_name');
+  const activeIdx = headers.indexOf('is_active');
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][pidIdx]) === String(productId)) {
+      if (activeIdx >= 0 && data[i][activeIdx] === false) return null;
+      return String(data[i][nameIdx] || '');
+    }
+  }
+  return null;
+}
+
+/** set value ลง row array โดย header name (ถ้าไม่มี header นั้นจะไม่ทำอะไร) */
+function setCol_(row, headers, colName, value) {
+  const idx = headers.indexOf(colName);
+  if (idx < 0) return false;
+  row[idx] = value;
+  return true;
+}
+
+/** หา row index (1-based, +1 สำหรับ header) ของ recordId ในชีต — return -1 ถ้าไม่เจอ */
+function findRowByIdCol_(sh, idColName, idValue) {
+  const last = sh.getLastRow();
+  if (last < 2) return -1;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const idIdx = headers.indexOf(idColName);
+  if (idIdx < 0) return -1;
+  const ids = sh.getRange(2, idIdx + 1, last - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(idValue)) return i + 2;
+  }
+  return -1;
+}
+
+/** safe push — log warn ถ้า push fail (เช่น owner ยังไม่ตั้ง) แทนการ throw */
+function safePushToAllManagers_(messages, contextFn) {
+  try {
+    pushToAllManagers(messages);
+  } catch (err) {
+    logWarn(contextFn || 'safePushToAllManagers_', 'push failed: ' + err.message);
+  }
+}
+
+function safePushToAllSupervisors_(messages, contextFn) {
+  try {
+    pushToAllSupervisors(messages);
+  } catch (err) {
+    logWarn(contextFn || 'safePushToAllSupervisors_', 'push failed: ' + err.message);
+  }
+}
+
+function safePushToAllOwners_(messages, contextFn) {
+  try {
+    pushToAllOwners(messages);
+  } catch (err) {
+    logWarn(contextFn || 'safePushToAllOwners_', 'push failed: ' + err.message);
+  }
+}
+
+// =====================================================================
+// GET PRODUCTS — dropdown สำหรับ LIFF
+// =====================================================================
+
 function handleGetProducts(payload) {
   // payload: { lineUserId }
   // return: { ok: true, products: [{ product_id, product_name, qty_on_hand, unit }, ...] }

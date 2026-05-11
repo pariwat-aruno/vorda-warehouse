@@ -125,19 +125,20 @@
 - **Implemented errors:** missing_params, unknown_record_type, duplicate_request, not_found, not_pending, not_owner_of_submission, cancel_window_expired, invalid_submit_time, server_error
 
 ### TASK-09: Inbound.gs::handleSubmitInbound
-- [ ] dedup ผ่าน `dedupRecentSubmission_('inbound:' + lineUserId, 5)`
-- [ ] auto-register staff ถ้ายังไม่มี (Sheet Staff)
-- [ ] **กรณีไม่มี pairingMovementId (รอบ 1):**
+- [x] dedup ผ่าน `dedupRecentSubmission_('inbound:' + lineUserId + ':' + productId + ':' + qty + ':r1|<movId>', 5)`
+- [x] auto-register staff ถ้ายังไม่มี (Sheet Staff) — ผ่าน `autoRegisterStaff_()` ใน Utils.gs
+- [x] **กรณีไม่มี pairingMovementId (รอบ 1):**
   - upload 4 รูป → photo_urls
   - insert Movements row: `status='pending_partner'`, submitter1_*, photo_urls
   - return: `{ ok: true, movementId, status: 'pending_partner' }`
-- [ ] **กรณีมี pairingMovementId (รอบ 2):**
-  - find row + ตรวจ status='pending_partner', submitter1_user_id ≠ ตัวเอง
+- [x] **กรณีมี pairingMovementId (รอบ 2):**
+  - validate: movement_type='inbound', status='pending_partner', submitter1 ≠ ตัวเอง, product ตรง
   - update submitter2_*, photo_urls (append)
   - **match qty:**
-    - submitter1_qty === submitter2_qty → status='confirmed', confirmed_at, qty=submitter1_qty → apply Stock (qty_on_hand += qty) → push LINE manager
-    - ไม่ตรง → status='pending_supervisor' → pushToAllSupervisors flex card
-- **Acceptance:** ลองทั้ง 2 เคส ผ่าน LIFF (ตรง + ไม่ตรง) — Stock update ถูก, LINE alert ถูกคน
+    - ตรง → status='confirmed', qty=submitter1_qty → `applyStockDelta_(+qty)` → push manager LINE
+    - ไม่ตรง → status='pending_supervisor' → push supervisor LINE
+- [x] shared helpers ใน Submission.gs: `applyStockDelta_` (LockService), `lookupProductName_`, `setCol_`, `findRowByIdCol_`, `safePushToAllManagers_` etc.
+- **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-10: Outbound.gs::handleSubmitOutbound
 - [ ] เหมือน Inbound แต่ apply Stock เป็น `qty_on_hand -= qty`
