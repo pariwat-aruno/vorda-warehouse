@@ -227,8 +227,146 @@ function _handleAdjustRound2_(lineUserId, name, productId, qty, reason, photos, 
 // OWNER-INITIATED ADJUST (หลัง count variance) — TASK-14 จะทำต่อ
 // =====================================================================
 
+/**
+ * owner ปรับยอด Stock หลัง count variance (TASK-14)
+ *
+ * payload: { lineUserId, countId, deltaQty, reason }
+ *   - deltaQty = +n เพิ่ม / -n ลด (โดยปกติ = final_qty - system_qty ของ Counts row)
+ *   - reason: เหตุผลที่ปรับ (เช่น "นับเทียบสัปดาห์ที่ 19")
+ *
+ * effect:
+ *   1. insert Movements row (movement_type='adjust', single-submitter=owner)
+ *   2. apply Stock — รองรับ delta บวก/ลบ (allow negative ถ้า owner ยืนยัน — แต่กันติดลบเหมือนเดิม)
+ *   3. update Counts row: status='resolved_by_adjust', owner_action_*
+ *   4. push owner confirmation
+ *
+ * error codes:
+ *   missing_params, not_owner, count_not_found, count_not_awaiting,
+ *   qty_invalid, insufficient_stock, server_error
+ */
 function handleAdjustStock(payload) {
-  // owner-initiated หลัง count variance
-  // payload: { lineUserId, countId, deltaQty, reason }
-  return { ok: false, error: 'not_implemented', action: 'adjustStock' };
+  payload = payload || {};
+  const lineUserId = payload.lineUserId;
+  const countId = payload.countId;
+  const deltaQty = Number(payload.deltaQty);
+  const reason = String(payload.reason || '').trim();
+
+  if (!lineUserId || !countId || payload.deltaQty == null) {
+    return { ok: false, error: 'missing_params', need: ['lineUserId', 'countId', 'deltaQty'] };
+  }
+  if (!isOwner(lineUserId)) {
+    return { ok: false, error: 'not_owner' };
+  }
+  if (!isFinite(deltaQty) || deltaQty !== Math.floor(deltaQty)) {
+    return { ok: false, error: 'qty_invalid', message: 'deltaQty ต้องเป็นจำนวนเต็ม' };
+  }
+  if (deltaQty === 0) {
+    return { ok: false, error: 'qty_invalid', message: 'deltaQty=0 ไม่ต้องปรับยอด' };
+  }
+
+  const dedupKey = 'adjustStock:' + lineUserId + ':' + countId;
+  if (!dedupRecentSubmission_(dedupKey, 5)) {
+    return { ok: false, error: 'duplicate_request' };
+  }
+
+  try {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const ss = SpreadsheetApp.openById(sheetId);
+    const countsSh = ss.getSheetByName('Counts');
+    const movSh = ss.getSheetByName('Movements');
+
+    const rowIdx = findRowByIdCol_(countsSh, 'count_id', countId);
+    if (rowIdx < 0) return { ok: false, error: 'count_not_found', countId: countId };
+
+    const headers = countsSh.getRange(1, 1, 1, countsSh.getLastColumn()).getValues()[0];
+    const row = countsSh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
+
+    const status = String(row[headers.indexOf('status')] || '');
+    if (status !== 'awaiting_owner') {
+      return { ok: false, error: 'count_not_awaiting', currentStatus: status };
+    }
+
+    const productId = String(row[headers.indexOf('product_id')] || '');
+    const productName = String(row[headers.indexOf('product_name')] || productId);
+    const systemQty = Number(row[headers.indexOf('system_qty')] || 0);
+    const finalQty = Number(row[headers.indexOf('final_qty')] || 0);
+    const ownerName = (function () {
+      const s = findStaffByLineUserId(lineUserId);
+      return (s && s.name) || 'owner';
+    })();
+
+    // pre-check stock ถ้า delta ลบ
+    if (deltaQty < 0) {
+      const stockNow = readStockQty_(productId);
+      if (stockNow + deltaQty < 0) {
+        return {
+          ok: false, error: 'insufficient_stock',
+          qty_on_hand: stockNow, delta: deltaQty,
+        };
+      }
+    }
+
+    // 1. insert Movements row (single-submitter = owner)
+    const movementId = nextMovementId();
+    const movHeaders = movSh.getRange(1, 1, 1, movSh.getLastColumn()).getValues()[0];
+    const mrow = new Array(movHeaders.length).fill('');
+    const now = nowBangkok();
+    setCol_(mrow, movHeaders, 'movement_id', movementId);
+    setCol_(mrow, movHeaders, 'movement_type', 'adjust');
+    setCol_(mrow, movHeaders, 'product_id', productId);
+    setCol_(mrow, movHeaders, 'product_name', productName);
+    setCol_(mrow, movHeaders, 'qty', deltaQty);
+    setCol_(mrow, movHeaders, 'reason', reason || ('count adjust: ' + countId));
+    setCol_(mrow, movHeaders, 'related_doc_id', countId);
+    // owner เป็น submitter1 (ไม่มี submitter2 — single-submitter)
+    setCol_(mrow, movHeaders, 'submitter1_user_id', lineUserId);
+    setCol_(mrow, movHeaders, 'submitter1_name', ownerName);
+    setCol_(mrow, movHeaders, 'submitter1_qty', deltaQty);
+    setCol_(mrow, movHeaders, 'submitter1_at', now);
+    setCol_(mrow, movHeaders, 'status', 'confirmed');
+    setCol_(mrow, movHeaders, 'created_at', now);
+    setCol_(mrow, movHeaders, 'confirmed_at', now);
+    movSh.appendRow(mrow);
+
+    // 2. apply Stock
+    const stock = applyStockDelta_(productId, deltaQty, movementId);
+
+    // 3. update Counts row
+    countsSh.getRange(rowIdx, headers.indexOf('status') + 1).setValue('resolved_by_adjust');
+    countsSh.getRange(rowIdx, headers.indexOf('owner_action_user_id') + 1).setValue(lineUserId);
+    countsSh.getRange(rowIdx, headers.indexOf('owner_action_at') + 1).setValue(now);
+
+    logInfo('handleAdjustStock', 'count adjusted', {
+      countId: countId, movementId: movementId, productId: productId,
+      deltaQty: deltaQty, system_qty: systemQty, final_qty: finalQty,
+      stock_before: stock.qty_before, stock_after: stock.qty_after,
+    });
+
+    // 4. push owner confirmation
+    const deltaStr = (deltaQty > 0 ? '+' : '') + deltaQty;
+    safePushToAllOwners_([{
+      type: 'text',
+      text:
+        'ปรับยอด confirmed\n' +
+        'รหัส: ' + countId + '\n' +
+        'สินค้า: ' + productName + '\n' +
+        'ปรับยอด: ' + deltaStr + ' ชิ้น\n' +
+        'ยอดคงเหลือ: ' + stock.qty_after + ' (เดิม ' + stock.qty_before + ')\n' +
+        (reason ? 'เหตุผล: ' + reason + '\n' : '') +
+        'movement: ' + movementId,
+    }], 'handleAdjustStock');
+
+    return {
+      ok: true,
+      countId: countId,
+      movementId: movementId,
+      deltaQty: deltaQty,
+      qty_before: stock.qty_before,
+      qty_after: stock.qty_after,
+      countStatus: 'resolved_by_adjust',
+    };
+  } catch (err) {
+    logError('handleAdjustStock', err.message, { countId: countId, deltaQty: deltaQty });
+    return { ok: false, error: 'server_error', message: err.message };
+  }
 }

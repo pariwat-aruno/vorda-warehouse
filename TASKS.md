@@ -178,13 +178,13 @@
 - **Acceptance:** ⏳ test ทีหลังตอน LIFF พร้อม
 
 ### TASK-14: Adjust.gs::handleAdjustStock (owner-initiated)
-- [ ] เช็ค `isOwner(lineUserId)`
-- [ ] รับ countId + deltaQty + reason
-- [ ] insert Movement row (movement_type='adjust') — single submitter (owner เอง), ไม่ต้อง double-blind
-- [ ] apply Stock (qty_on_hand += deltaQty)
-- [ ] update Counts row: `status='resolved_by_adjust', owner_action_*`
-- [ ] push confirmation LINE owner
-- **Acceptance:** count variance หาย, Stock ตรง
+- [x] เช็ค `isOwner(lineUserId)` (return not_owner)
+- [x] รับ countId + deltaQty (+/-) + reason
+- [x] insert Movement row (movement_type='adjust', related_doc_id=countId, single-submitter=owner)
+- [x] apply Stock (qty_on_hand += deltaQty) + pre-check ติดลบ
+- [x] update Counts row: `status='resolved_by_adjust', owner_action_*`
+- [x] push confirmation LINE owner
+- **Acceptance:** ⏳ test end-to-end ตอน LIFF พร้อม
 
 ### TASK-15: Return.gs::handleSubmitReturn
 - [ ] dedup
